@@ -37,19 +37,23 @@ echo -e "${GREEN}✓${NC} Claude Code directory found"
 mkdir -p "$HOOKS_DIR"
 echo -e "${GREEN}✓${NC} Hooks directory ready: $HOOKS_DIR"
 
+# Get the absolute path of the project directory
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Copy hook script
 echo -e "\n${BLUE}Installing hook script...${NC}"
 cp hooks/play_audio.sh "$HOOKS_DIR/"
 chmod +x "$HOOKS_DIR/play_audio.sh"
-
-# Update the path in the hook script
-sed -i "s|/home/chanmeng|$HOME_DIR|g" "$HOOKS_DIR/play_audio.sh"
 echo -e "${GREEN}✓${NC} Hook script installed and configured"
 
-# Copy audio file
-echo -e "\n${BLUE}Installing audio file...${NC}"
-cp audio/hey-chan-please-help-me.mp3 "$HOME_DIR/"
-echo -e "${GREEN}✓${NC} Audio file installed: $HOME_DIR/hey-chan-please-help-me.mp3"
+# Verify audio file exists in project
+echo -e "\n${BLUE}Verifying audio file...${NC}"
+if [ -f "$PROJECT_DIR/audio/hey-chan-please-help-me.mp3" ]; then
+    echo -e "${GREEN}✓${NC} Audio file found in project: $PROJECT_DIR/audio/"
+else
+    echo -e "${RED}✗${NC} Audio file not found in project directory"
+    exit 1
+fi
 
 # Backup existing settings
 if [ -f "$SETTINGS_FILE" ]; then
@@ -198,7 +202,7 @@ echo -e "${GREEN}================================================${NC}"
 echo ""
 echo -e "📝 ${BLUE}Installation Summary:${NC}"
 echo -e "   • Hook script: $HOOKS_DIR/play_audio.sh"
-echo -e "   • Audio file: $HOME_DIR/hey-chan-please-help-me.mp3"
+echo -e "   • Audio file: $PROJECT_DIR/audio/hey-chan-please-help-me.mp3"
 echo -e "   • Settings: $SETTINGS_FILE"
 echo -e "   • Permissions: $SETTINGS_LOCAL_FILE"
 echo ""
@@ -208,8 +212,9 @@ echo -e "   2. Test the hook by running any Claude Code command"
 echo -e "   3. You should hear audio when Claude finishes responding"
 echo ""
 echo -e "🎨 ${BLUE}Customization:${NC}"
-echo -e "   • Replace $HOME_DIR/hey-chan-please-help-me.mp3 with your own audio"
-echo -e "   • Edit $HOOKS_DIR/play_audio.sh to change audio file path"
+echo -e "   • Replace $PROJECT_DIR/audio/hey-chan-please-help-me.mp3 with your own audio"
+echo -e "   • The hook script will automatically detect the audio file location"
 echo ""
 echo -e "${YELLOW}⚠️  Important: Please restart Claude Code now!${NC}"
+echo -e "${YELLOW}⚠️  Keep the project folder at: $PROJECT_DIR${NC}"
 echo ""
