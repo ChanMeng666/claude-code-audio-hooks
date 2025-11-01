@@ -6,32 +6,32 @@
   "version": "2.0.0",
 
   "enabled_hooks": {
-    "_comment_notification": "Plays when Claude needs authorization or plan confirmation - HIGHLY RECOMMENDED",
+    "_comment_notification": "Plays when Claude needs authorization or plan confirmation",
     "notification": true,
 
-    "_comment_stop": "Plays when Claude finishes responding - RECOMMENDED",
+    "_comment_stop": "Plays when Claude finishes responding",
     "stop": true,
 
-    "_comment_pretooluse": "Plays before Claude executes a tool (alerts on permission prompts) - RECOMMENDED",
+    "_comment_pretooluse": "Plays before Claude executes a tool (alerts on permission prompts)",
     "pretooluse": true,
 
-    "_comment_posttooluse": "Plays after each tool execution (very noisy) - OPTIONAL",
-    "posttooluse": false,
+    "_comment_posttooluse": "Plays after each tool execution (tracks all tool completions)",
+    "posttooluse": true,
 
-    "_comment_userpromptsubmit": "Plays when you submit a prompt - OPTIONAL",
-    "userpromptsubmit": false,
+    "_comment_userpromptsubmit": "Plays when you submit a prompt",
+    "userpromptsubmit": true,
 
-    "_comment_subagent_stop": "Plays when subagent tasks complete - RECOMMENDED for heavy users",
+    "_comment_subagent_stop": "Plays when subagent tasks complete",
     "subagent_stop": true,
 
-    "_comment_precompact": "Plays before conversation history compaction - OPTIONAL",
-    "precompact": false,
+    "_comment_precompact": "Plays before conversation history compaction",
+    "precompact": true,
 
-    "_comment_session_start": "Plays when Claude Code session starts - OPTIONAL",
-    "session_start": false,
+    "_comment_session_start": "Plays when Claude Code session starts",
+    "session_start": true,
 
-    "_comment_session_end": "Plays when Claude Code session ends - OPTIONAL",
-    "session_end": false
+    "_comment_session_end": "Plays when Claude Code session ends",
+    "session_end": true
   },
 
   "audio_files": {
@@ -60,19 +60,30 @@
   },
 
   "_usage_notes": [
-    "1. RECOMMENDED CONFIGURATION: Enable 'notification', 'stop', 'pretooluse', and 'subagent_stop'",
-    "2. 'pretooluse' alerts you BEFORE tool execution, including permission prompts (key feature!)",
-    "3. 'posttooluse' is very noisy - keep disabled unless debugging",
-    "4. To reduce notifications, disable 'pretooluse' (you'll only hear task completion)",
-    "5. To use custom audio, place MP3 files in audio/custom/ and update paths",
-    "6. Audio files should be 1-3 seconds long for best experience",
-    "7. Run 'scripts/configure.sh' for interactive configuration",
-    "8. Run 'scripts/test-audio.sh' to test all enabled notifications",
+    "🔊 ALL 9 HOOKS ARE ENABLED - MAXIMUM AUDIO FEEDBACK!",
     "",
-    "PROJECT GOAL: Alert user whenever Claude Code stops or pauses for ANY reason:",
-    "  • pretooluse: Alerts BEFORE tools (permission prompts, confirmations)",
-    "  • stop: Alerts AFTER task completion",
-    "  • notification: Alerts on system notifications",
-    "  • subagent_stop: Alerts when background tasks complete"
+    "This configuration provides complete audio coverage of all Claude Code events:",
+    "",
+    "1. userpromptsubmit: When you press Enter → 'Prompt received'",
+    "2. pretooluse: Before each tool execution → 'Starting task'",
+    "3. posttooluse: After each tool execution → 'Task in progress'",
+    "4. notification: System notifications → 'Attention! Authorization needed'",
+    "5. stop: When Claude finishes responding → 'Task completed successfully'",
+    "6. subagent_stop: Background tasks complete → 'Subagent task completed'",
+    "7. precompact: Before compaction → 'Information: compacting'",
+    "8. session_start: When you start Claude Code → 'Session started'",
+    "9. session_end: When you exit Claude Code → 'Session ended'",
+    "",
+    "⚠️ NOTE: This is VERY COMPREHENSIVE - you'll hear A LOT of audio!",
+    "  • pretooluse + posttooluse = audio before AND after EVERY tool",
+    "  • This means frequent notifications during active development",
+    "",
+    "To reduce noise:",
+    "  • Set posttooluse: false (removes after-tool notifications)",
+    "  • Set userpromptsubmit: false (removes prompt confirmation)",
+    "  • Set pretooluse: false (removes before-tool notifications, BUT loses permission alerts)",
+    "",
+    "PROJECT GOAL: Maximum awareness of all Claude Code activity!",
+    "Run 'scripts/view-hook-log.sh' to see trigger statistics"
   ]
 }
