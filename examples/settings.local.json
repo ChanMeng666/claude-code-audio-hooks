@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.claude/hooks/play_audio.sh)"
+    ],
+    "deny": []
+  }
+}
