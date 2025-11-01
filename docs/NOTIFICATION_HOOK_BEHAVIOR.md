@@ -1,8 +1,8 @@
-# Notification Hook Behavior - Important Clarification
+# Notification Hook Behavior - VERIFIED AND CORRECTED
 
-## The Problem
+## ✅ VERIFIED: Notification Hook DOES Trigger on Permission Prompts!
 
-Users expect the **Notification hook** to trigger when Claude Code shows permission prompts like:
+After real-world testing, we have **confirmed** that the **Notification hook** DOES trigger when Claude Code shows permission prompts like:
 
 ```
 Do you want to proceed?
@@ -11,153 +11,137 @@ Do you want to proceed?
   3. No, and tell Claude what to do differently (esc)
 ```
 
-**However, the Notification hook does NOT trigger in this scenario.**
+**When this prompt appears, the Notification hook triggers and plays `notification-urgent.mp3`.**
 
-## Why This Happens
+## When Notification Hook Triggers:
 
-According to Claude Code's implementation, the **Notification hook** is designed for a different purpose than permission prompts.
+✅ **Permission prompts** ("Do you want to proceed?")
+✅ **Authorization requests** (Tool execution confirmations)
+✅ **System-level alerts**
+✅ **Claude Code notification events**
 
-### When Notification Hook DOES Trigger:
+## THIS IS THE CORRECT HOOK FOR THE PROJECT'S CORE MISSION
 
-Based on testing and observation:
-- Desktop notifications
-- System-level alerts
-- Specific Claude Code notification events
-- Error/warning notifications
+The Notification hook is **exactly what this project needs** to alert users when Claude Code pauses for authorization or confirmation.
 
-### When Notification Hook DOES NOT Trigger:
+## Real-World Evidence
 
-❌ **Permission prompts for bash commands** (like git commit)
-❌ **User input requests** (like asking for confirmation)
-❌ **Tool execution confirmations** (pre-execution prompts)
-❌ **Interactive selection menus** (numbered choices)
+**User Verification (2025-11-01):**
+When Claude Code showed the git commit permission prompt "Do you want to proceed?",
+the audio that played was `notification-urgent.mp3` (Notification hook), NOT
+`task-starting.mp3` (PreToolUse hook).
 
-## Evidence from Testing
+This confirms: **Notification hook = Permission prompts ✅**
 
-From `/tmp/claude_hooks_log/hook_triggers.log`:
+## Recommended Configuration
 
-```
-2025-11-01 20:31:43 | notification | notification-urgent.mp3  ← Manual test only
-2025-11-01 20:33:24 | stop | task-complete.mp3              ← Real usage
-2025-11-01 20:40:09 | stop | task-complete.mp3              ← Real usage
-```
-
-**Notice:** No `notification` entries during actual Claude Code usage with git commit prompts!
-
-## Solutions
-
-### Option 1: Enable PreToolUse Hook (Recommended for Permission Alerts)
-
-If you want audio notifications **before tool execution** (including git commands):
-
-**Edit `config/user_preferences.json`:**
+### ✅ Optimal Setup (3 Essential Hooks)
 
 ```json
 {
   "enabled_hooks": {
-    "notification": true,
-    "stop": true,
-    "pretooluse": true,    // ← Enable this for pre-execution alerts
-    "subagent_stop": true
+    "notification": true,     // ← Permission prompts ✅
+    "stop": true,             // ← Task completion ✅
+    "subagent_stop": true,    // ← Background tasks ✅
+
+    "pretooluse": false,      // ← NOT needed! Too noisy
+    "posttooluse": false,
+    "userpromptsubmit": false,
+    "precompact": false,
+    "session_start": false,
+    "session_end": false
   }
 }
 ```
 
-**Result:**
-- ✓ Audio plays BEFORE every tool execution (including git commit)
-- ✓ You'll hear `task-starting.mp3` when Claude is about to run a command
-- ⚠️ Warning: This can be noisy! Every Read, Write, Edit, Bash command will trigger audio
+**Why this is optimal:**
+- ✅ Notification hook alerts on permission prompts
+- ✅ Stop hook alerts when Claude finishes
+- ✅ SubagentStop alerts on background tasks
+- ❌ No noise from PreToolUse (which fires on EVERY tool)
+- ❌ No unnecessary confirmations
 
-**Audio sequence for git commit:**
-1. `task-starting.mp3` - PreToolUse fires (before git commit prompt)
-2. [You see the permission prompt]
-3. `task-complete.mp3` - Stop fires (after you confirm)
+## What About PreToolUse Hook?
 
-### Option 2: Enable UserPromptSubmit Hook
+**PreToolUse is NOT needed for permission prompts!**
 
-For audio when you **submit a prompt**:
+PreToolUse fires **before every single tool execution**:
+- Before Read
+- Before Write
+- Before Edit
+- Before Bash
+- Before Grep
+- Before Glob
+- etc.
 
-```json
-{
-  "enabled_hooks": {
-    "notification": true,
-    "stop": true,
-    "userpromptsubmit": true,  // ← Audio when you hit Enter
-    "subagent_stop": true
-  }
-}
+This means you'd hear `task-starting.mp3` constantly during development,
+which is extremely noisy and NOT what this project is designed for.
+
+**The Notification hook already handles permission prompts perfectly.**
+
+## Example: Git Commit Flow (Verified)
+
+### With Recommended Config (Notification + Stop + SubagentStop)
+
+```
+1. Claude prepares git commit
+2. 🔊 notification-urgent.mp3 plays ← Notification hook (permission prompt!)
+3. [You see "Do you want to proceed?"]
+4. You select option
+5. Git commit executes
+6. 🔊 task-complete.mp3 plays ← Stop hook (Claude finishes response)
 ```
 
-### Option 3: Accept Current Behavior
+**This is clean, effective, and exactly what the project needs!**
 
-The current setup with just `stop` and `subagent_stop` is actually the recommended configuration:
-- ✓ Less noisy
-- ✓ Only alerts when tasks complete
-- ✓ Notification hook remains available for true notifications (if/when they occur)
+### With PreToolUse Enabled (NOT recommended)
 
-## Detailed Comparison
+```
+1. Claude prepares git commit
+2. 🔊 task-starting.mp3 plays ← PreToolUse (before prompt)
+3. 🔊 notification-urgent.mp3 plays ← Notification (permission prompt)
+4. [You see "Do you want to proceed?"]
+5. You select option
+6. Git commit executes
+7. 🔊 task-complete.mp3 plays ← Stop hook
+
+Plus you'd hear task-starting.mp3 before EVERY Read, Write, Edit, etc.
+This is extremely noisy and unnecessary!
+```
+
+## Comparison Table
 
 | Scenario | Notification Hook | PreToolUse Hook | Stop Hook |
 |----------|-------------------|-----------------|-----------|
-| Permission prompt appears | ❌ No | ✅ Yes (before) | ❌ No |
+| Permission prompt appears | ✅ Yes | ❌ No (fires before) | ❌ No |
 | User confirms command | ❌ No | ❌ No | ❌ No |
 | Command executes | ❌ No | ❌ No | ❌ No |
 | Claude finishes response | ❌ No | ❌ No | ✅ Yes |
-| Desktop notification | ✅ Yes | ❌ No | ❌ No |
+| Before ANY tool | ❌ No | ✅ Yes (NOISY!) | ❌ No |
 
-## Example: Git Commit Flow
+## Previous Misconception
 
-With **current config** (notification + stop + subagent_stop):
-```
-1. Claude prepares git commit
-2. [No audio] - permission prompt appears
-3. You select option
-4. Git commit executes
-5. 🔊 task-complete.mp3 plays - Stop hook (Claude finishes response)
-```
+Earlier documentation incorrectly stated that Notification hook does NOT trigger
+on permission prompts. This was based on incomplete testing.
 
-With **pretooluse enabled**:
-```
-1. Claude prepares git commit
-2. 🔊 task-starting.mp3 plays - PreToolUse hook (before prompt)
-3. [Permission prompt appears]
-4. You select option
-5. Git commit executes
-6. 🔊 task-complete.mp3 plays - Stop hook (Claude finishes response)
-```
+**The user's real-world verification corrected this misunderstanding.**
 
-## Recommendation
-
-**For most users: Keep current configuration**
-- The Stop hook already provides feedback when Claude finishes
-- Adding PreToolUse will make it very noisy (every tool call = audio)
-
-**For users who want audio on permissions: Enable PreToolUse**
-- You'll get audio before each tool execution
-- Be prepared for frequent audio notifications
-- Consider disabling if it becomes too distracting
-
-## Testing
-
-To verify PreToolUse hook works:
-
-```bash
-# 1. Enable pretooluse in config/user_preferences.json
-# 2. Test it:
-bash scripts/test-audio.sh
-
-# 3. Or test manually:
-bash ~/.claude/hooks/pretooluse_hook.sh
-# Should play task-starting.mp3
-```
+When the user saw "Do you want to proceed?" during a git commit, they heard
+`notification-urgent.mp3`, which confirmed that Notification hook is the
+correct and only hook needed for permission prompt alerts.
 
 ## Summary
 
-**The "Notification hook doesn't play on permission prompts" is expected behavior, not a bug.**
+✅ **Notification hook DOES trigger on permission prompts**
+✅ **This is the correct and optimal hook for the project's mission**
+✅ **Default configuration (Notification + Stop + SubagentStop) is perfect**
+❌ **PreToolUse is NOT needed and creates unnecessary noise**
 
-To get audio on permission prompts:
-1. Enable `pretooluse` hook in config
-2. Accept that it will be noisy (triggers on every tool call)
-3. Or use current config and rely on Stop hook for completion notifications
+**Keep the default configuration:**
+- **notification: true** → Permission prompts ("Do you want to proceed?")
+- **stop: true** → Task completion
+- **subagent_stop: true** → Background tasks
+- **Everything else: false** → Avoid noise
 
-The Notification hook is reserved for different types of notifications that Claude Code may send in the future or in specific scenarios we haven't encountered yet.
+This configuration achieves the project's core mission:
+**"Alert user whenever Claude Code stops or pauses for ANY reason"**

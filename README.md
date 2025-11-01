@@ -71,23 +71,24 @@ See the AI_SETUP_GUIDE.md for complete instructions.
 
 All 9 audio files are **professional ElevenLabs Jessica voice recordings** - ready to use immediately! No placeholder files - everything works out of the box.
 
-#### **Maximum Audio Feedback**
+#### **Optimal Configuration**
 
-🔊 **ALL 9 HOOKS ARE ENABLED BY DEFAULT** - Complete audio coverage!
+✅ **3 ESSENTIAL HOOKS ENABLED BY DEFAULT** - Clean and effective!
 
-- 💬 **UserPromptSubmit** - When you press Enter
-- 🔨 **PreToolUse** - Before tool execution (permission prompts!)
-- 📊 **PostToolUse** - After tool execution
-- ⚠️ **Notification** - System notifications
-- ✅ **Stop** - Task completion
-- 🤖 **SubagentStop** - Background tasks
-- 🗜️ **PreCompact** - Before conversation compaction
-- 👋 **SessionStart** - When Claude Code starts
-- 👋 **SessionEnd** - When Claude Code exits
+- ⚠️ **Notification** - When Claude needs authorization ("Do you want to proceed?")
+- ✅ **Stop** - When Claude finishes responding
+- 🤖 **SubagentStop** - When background tasks complete
 
-**This provides maximum awareness of ALL Claude Code activity!**
+**This configuration perfectly aligns with the project's core mission: Alert whenever Claude Code stops or pauses for ANY reason!**
 
-⚠️ **Note:** This is comprehensive and you'll hear frequent audio notifications. You can disable specific hooks in `config/user_preferences.json` if it becomes too noisy.
+🎯 **Why this is optimal:**
+- ✅ Audio alerts on permission prompts (Notification hook)
+- ✅ Audio alerts on task completion (Stop hook)
+- ✅ Audio alerts on background tasks (SubagentStop hook)
+- ❌ No noise from every tool execution
+- ❌ No unnecessary prompt confirmations
+
+💡 **Note:** 6 additional hooks (PreToolUse, PostToolUse, UserPromptSubmit, PreCompact, SessionStart, SessionEnd) are available but disabled by default to avoid noise. Enable them in `config/user_preferences.json` if needed.
 
 #### **Configuration System**
 
@@ -248,78 +249,85 @@ bash scripts/verify-path-detection.sh
 
 ## 🎵 The 9 Notification Types
 
-### **🔊 ALL ENABLED BY DEFAULT - Maximum Audio Coverage**
+### **✅ Enabled by Default (3 Essential Hooks)**
 
-#### **1. 💬 UserPromptSubmit Hook** - Prompt Confirmation
-- **When:** You press Enter to submit a prompt
-- **Audio:** "Prompt received."
-- **Purpose:** Confirms Claude received your input
-- **Status:** ✅ Enabled by default
-
-#### **2. 🔨 PreToolUse Hook** - Permission Prompt Alert
-- **When:** Before Claude executes any tool (INCLUDING permission prompts!)
-- **Audio:** "Starting task."
-- **Purpose:** **Critical!** Alerts you when Claude pauses for permission
-- **Status:** ✅ Enabled by default
-
-#### **3. 📊 PostToolUse Hook** - Tool Execution Complete
-- **When:** After Claude executes any tool
-- **Audio:** "Task in progress."
-- **Purpose:** Confirms each tool execution completed
-- **Status:** ✅ Enabled by default
-
-#### **4. ⚠️ Notification Hook** - System Alerts
-- **When:** Claude sends system notifications
+#### **1. ⚠️ Notification Hook** - Permission Prompt Alert ⭐ KEY FEATURE
+- **When:** Claude shows "Do you want to proceed?" authorization prompts
 - **Audio:** "Attention! Claude needs your authorization."
-- **Purpose:** System-level alerts and notifications
+- **Why enabled:** **This is the primary hook for the project's core mission!**
 - **Status:** ✅ Enabled by default
+- **Verified:** When you see permission prompts, this hook triggers and plays `notification-urgent.mp3`
 
-#### **5. ✅ Stop Hook** - Task Completion
+#### **2. ✅ Stop Hook** - Task Completion
 - **When:** Claude finishes responding to you
 - **Audio:** "Task completed successfully!"
-- **Purpose:** Core functionality - know when Claude is done
+- **Why enabled:** Know when Claude is done working
 - **Status:** ✅ Enabled by default
 
-#### **6. 🤖 SubagentStop Hook** - Background Tasks
+#### **3. 🤖 SubagentStop Hook** - Background Tasks
 - **When:** Background/subagent tasks complete
 - **Audio:** "Subagent task completed."
-- **Purpose:** Track long-running background operations
+- **Why enabled:** Important for long-running operations using Task tool
 - **Status:** ✅ Enabled by default
+
+---
+
+### **❌ Disabled by Default (6 Optional Hooks)**
+
+These hooks are available but disabled to avoid noise. Enable them in `config/user_preferences.json` if needed.
+
+#### **4. 🔨 PreToolUse Hook** - Before Tool Execution
+- **When:** Before EVERY tool (Read, Write, Edit, Bash, etc.)
+- **Audio:** "Starting task."
+- **Why disabled:** Too frequent! Plays before every single tool execution, not just permission prompts
+- **Status:** ❌ Disabled by default
+- **Note:** Notification hook already covers permission prompts, so this is redundant
+
+#### **5. 📊 PostToolUse Hook** - After Tool Execution
+- **When:** After EVERY tool execution
+- **Audio:** "Task in progress."
+- **Why disabled:** Extremely noisy during active development
+- **Status:** ❌ Disabled by default
+
+#### **6. 💬 UserPromptSubmit Hook** - Prompt Confirmation
+- **When:** You press Enter to submit a prompt
+- **Audio:** "Prompt received."
+- **Why disabled:** Unnecessary - you already know when you submit
+- **Status:** ❌ Disabled by default
 
 #### **7. 🗜️ PreCompact Hook** - Conversation Compaction
 - **When:** Before Claude compacts conversation history
 - **Audio:** "Information: compacting conversation."
-- **Purpose:** Alerts before context is compressed
-- **Status:** ✅ Enabled by default
+- **Why disabled:** Rare event, not critical
+- **Status:** ❌ Disabled by default
 
 #### **8. 👋 SessionStart Hook** - Session Start
 - **When:** Claude Code session starts
 - **Audio:** "Session started."
-- **Purpose:** Confirms Claude Code is ready
-- **Status:** ✅ Enabled by default
+- **Why disabled:** Optional - not needed for core functionality
+- **Status:** ❌ Disabled by default
 
 #### **9. 👋 SessionEnd Hook** - Session End
 - **When:** Claude Code session ends
 - **Audio:** "Session ended."
-- **Purpose:** Confirms clean shutdown
-- **Status:** ✅ Enabled by default
+- **Why disabled:** Optional - not needed for core functionality
+- **Status:** ❌ Disabled by default
+
+---
 
 ### **Audio Frequency Guide**
 
-**Very Frequent (Multiple times per minute):**
-- 💬 UserPromptSubmit
-- 🔨 PreToolUse
-- 📊 PostToolUse
-- ✅ Stop
+**Very Frequent (With default config):**
+- ✅ Stop (Every response completion)
 
 **Occasional (Few times per session):**
-- 🤖 SubagentStop
-- ⚠️ Notification
+- ⚠️ Notification (Permission prompts)
+- 🤖 SubagentStop (Background tasks)
 
-**Rare (Once per session):**
-- 👋 SessionStart
-- 👋 SessionEnd
-- 🗜️ PreCompact
+**If you enable optional hooks (not recommended):**
+- 🔨 PreToolUse + 📊 PostToolUse = VERY NOISY (before/after every tool!)
+- 💬 UserPromptSubmit = Noisy (every prompt)
+- 👋 SessionStart/End + 🗜️ PreCompact = Rare but unnecessary
 
 **Want to customize?** Run `bash scripts/configure.sh` for an interactive menu!
 
