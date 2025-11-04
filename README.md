@@ -132,10 +132,12 @@ graph TB
 | Platform | Status | Audio Player | Installation |
 |----------|--------|--------------|--------------|
 | **WSL (Ubuntu/Debian)** | ✅ Fully tested | PowerShell | `bash scripts/install-complete.sh` |
-| **Git Bash (Windows)** | ✅ Fully supported | PowerShell | `bash scripts/install-complete.sh` |
+| **Git Bash (Windows)** | ✅ Fully supported<br/>*Auto path conversion* | PowerShell | `bash scripts/install-complete.sh` |
 | **macOS** | ✅ Native support | afplay | `bash scripts/install-complete.sh` |
 | **Native Linux** | ✅ Fully supported | mpg123/aplay | `bash scripts/install-complete.sh` |
 | **Cygwin** | ✅ Fully supported | PowerShell | `bash scripts/install-complete.sh` |
+
+> **Note for Git Bash Users:** Version 2.1+ includes automatic path conversion to handle Git Bash's Unix-style paths. The installer will configure this automatically—no manual setup required!
 
 ### **Quick System Check:**
 
@@ -733,6 +735,51 @@ bash scripts/configure.sh
 ---
 
 ## 🔧 Troubleshooting
+
+### **⚠️ Special Note for Windows Git Bash Users**
+
+If you're using **Git Bash on Windows** and installed successfully but hear no audio, this is likely due to a **path compatibility issue** that has been **automatically fixed in v2.1+**.
+
+#### **Symptoms:**
+- Installation completes successfully
+- No errors reported
+- But audio doesn't play when Claude Code tasks finish
+- Hooks appear installed but silent
+
+#### **Quick Fix:**
+```bash
+# Pull the latest code with the fix
+cd /path/to/claude-code-audio-hooks
+git pull origin master
+
+# Re-run installation (this will apply the path conversion fix)
+bash scripts/install-complete.sh
+
+# Test the fix
+bash scripts/test-path-conversion.sh
+```
+
+#### **What was the problem?**
+Git Bash uses Unix-style paths (`/d/github_repository/...`) while Windows Python expects Windows-style paths (`D:/github_repository/...`). The hooks couldn't read configuration files due to this mismatch.
+
+#### **How we fixed it:**
+Version 2.1+ includes automatic path conversion that:
+- Detects Git Bash environment
+- Converts paths before calling Python
+- Works transparently for all users
+- No manual configuration needed
+
+#### **Verify the fix is working:**
+```bash
+# This should show "Stop hook is ENABLED"
+bash scripts/test-path-conversion.sh
+
+# Check hook trigger log
+cat /tmp/claude_hooks_log/hook_triggers.log
+# You should see entries like: 2025-11-04 19:35:31 | stop | task-complete.mp3
+```
+
+---
 
 ### **Issue: "I don't hear any sound!"**
 

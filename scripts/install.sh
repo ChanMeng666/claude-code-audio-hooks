@@ -195,6 +195,13 @@ install_hook_scripts() {
     done
 
     print_success "Installed $installed hook scripts"
+
+    # Create necessary temporary directories for hook operation
+    echo -e "${CYAN}Creating temporary directories...${NC}"
+    mkdir -p /tmp/claude_audio_hooks_queue 2>/dev/null || true
+    mkdir -p /tmp/claude_hooks_log 2>/dev/null || true
+    print_success "Temporary directories created (queue and log)"
+
     echo ""
 }
 

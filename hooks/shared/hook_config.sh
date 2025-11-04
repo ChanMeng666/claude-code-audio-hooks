@@ -103,6 +103,28 @@ get_python_cmd() {
 }
 
 # =============================================================================
+# PATH CONVERSION FOR PYTHON (Git Bash Compatibility)
+# =============================================================================
+
+# Convert Unix-style path to Windows path for Python on Git Bash/MSYS/MINGW
+# This fixes the issue where Git Bash uses /d/path but Windows Python expects D:/path
+convert_path_for_python() {
+    local path="$1"
+
+    # Check if we're in Git Bash/MSYS/MINGW environment (Windows)
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "mingw"* ]]; then
+        # Convert /c/Users/... to C:/Users/...
+        # Convert /d/github/... to D:/github/...
+        # Pattern: /[drive_letter]/path -> [DRIVE_LETTER]:/path
+        echo "$path" | sed 's|^/\([a-zA-Z]\)/|\U\1:/|'
+        return 0
+    fi
+
+    # Not Git Bash, return path as-is
+    echo "$path"
+}
+
+# =============================================================================
 # CONFIGURATION FUNCTIONS
 # =============================================================================
 
@@ -136,11 +158,14 @@ is_hook_enabled() {
         esac
     fi
 
+    # Convert path for Python compatibility in Git Bash
+    local config_file_for_python=$(convert_path_for_python "$CONFIG_FILE")
+
     local enabled=$("$python_cmd" <<EOF 2>/dev/null
 import json
 import sys
 try:
-    with open("$CONFIG_FILE", "r") as f:
+    with open("$config_file_for_python", "r") as f:
         config = json.load(f)
     enabled = config.get("enabled_hooks", {}).get("$hook_type", False)
     print("true" if enabled else "false")
@@ -166,10 +191,13 @@ get_audio_file() {
             return 0
         fi
 
+        # Convert path for Python compatibility in Git Bash
+        local config_file_for_python=$(convert_path_for_python "$CONFIG_FILE")
+
         local audio_path=$("$python_cmd" <<EOF 2>/dev/null
 import json
 try:
-    with open("$CONFIG_FILE", "r") as f:
+    with open("$config_file_for_python", "r") as f:
         config = json.load(f)
     audio_file = config.get("audio_files", {}).get("$hook_type", "$default_file")
     print(audio_file)
@@ -321,10 +349,13 @@ is_queue_enabled() {
         return 0
     fi
 
+    # Convert path for Python compatibility in Git Bash
+    local config_file_for_python=$(convert_path_for_python "$CONFIG_FILE")
+
     local queue_enabled=$("$python_cmd" <<EOF 2>/dev/null
 import json
 try:
-    with open("$CONFIG_FILE", "r") as f:
+    with open("$config_file_for_python", "r") as f:
         config = json.load(f)
     enabled = config.get("playback_settings", {}).get("queue_enabled", True)
     print("true" if enabled else "false")
@@ -350,10 +381,13 @@ get_debounce_ms() {
         return
     fi
 
+    # Convert path for Python compatibility in Git Bash
+    local config_file_for_python=$(convert_path_for_python "$CONFIG_FILE")
+
     "$python_cmd" <<EOF 2>/dev/null
 import json
 try:
-    with open("$CONFIG_FILE", "r") as f:
+    with open("$config_file_for_python", "r") as f:
         config = json.load(f)
     debounce = config.get("playback_settings", {}).get("debounce_ms", 500)
     print(debounce)
