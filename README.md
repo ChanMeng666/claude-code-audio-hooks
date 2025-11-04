@@ -372,40 +372,40 @@ These hooks are available but disabled to avoid noise. Enable them in `config/us
 ```mermaid
 sequenceDiagram
     participant User
-    participant Claude Code
-    participant Hook System
-    participant Audio Player
+    participant CC as Claude Code
+    participant HS as Hook System
+    participant AP as Audio Player
 
-    User->>Claude Code: Submit prompt
-    Claude Code->>Hook System: Trigger Hook Event
+    User->>CC: Submit prompt
+    CC->>HS: Trigger Hook Event
 
     alt Permission Required
-        Hook System->>Audio Player: Play notification-urgent.mp3
-        Audio Player-->>User: 🔊 "Attention! Authorization needed"
-        User->>Claude Code: Grant permission
+        HS->>AP: Play notification-urgent.mp3
+        AP-->>User: 🔊 "Attention! Authorization needed"
+        User->>CC: Grant permission
     end
 
-    Claude Code->>Claude Code: Process task
+    CC->>CC: Process task
 
     loop For each tool use
-        Note over Hook System: PreToolUse (disabled by default)
-        Claude Code->>Claude Code: Execute tool
-        Note over Hook System: PostToolUse (disabled by default)
+        Note over HS: PreToolUse (disabled by default)
+        CC->>CC: Execute tool
+        Note over HS: PostToolUse (disabled by default)
     end
 
     alt Background Task
-        Claude Code->>Hook System: SubagentStop Event
-        Hook System->>Audio Player: Play subagent-complete.mp3
-        Audio Player-->>User: 🔊 "Background task completed"
+        CC->>HS: SubagentStop Event
+        HS->>AP: Play subagent-complete.mp3
+        AP-->>User: 🔊 "Background task completed"
     end
 
-    Claude Code->>Hook System: Stop Event
-    Hook System->>Audio Player: Play task-complete.mp3
-    Audio Player-->>User: 🔊 "Task completed successfully"
+    CC->>HS: Stop Event
+    HS->>AP: Play task-complete.mp3
+    AP-->>User: 🔊 "Task completed successfully"
 
-    style Claude Code fill:#4A90E2
-    style Hook System fill:#7ED321
-    style Audio Player fill:#F5A623
+    style CC fill:#4A90E2
+    style HS fill:#7ED321
+    style AP fill:#F5A623
 ```
 
 ---
