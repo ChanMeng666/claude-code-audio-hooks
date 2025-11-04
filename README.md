@@ -1081,8 +1081,6 @@ claude-code-audio-hooks/
 │   ├── detect-environment.sh       # Environment detection (700+ lines)
 │   ├── test-path-utils.sh          # Path utilities test suite
 │   └── apply-windows-fix.sh        # Windows compatibility fixes
-├── patches/
-│   └── windows-compatibility-fix.patch  # Git patch for Windows fixes
 ├── examples/
 │   ├── settings.json               # Example Claude Code config
 │   └── user_preferences.json       # Example user config

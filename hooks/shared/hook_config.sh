@@ -57,6 +57,52 @@ LOCK_FILE="/tmp/claude_audio_hooks.lock"
 QUEUE_DIR="/tmp/claude_audio_hooks_queue"
 
 # =============================================================================
+# PYTHON COMMAND DETECTION (Windows Compatibility)
+# =============================================================================
+
+# Smart Python command detector for cross-platform compatibility
+get_python_cmd() {
+    # Return cached command if already detected
+    if [ -n "$CLAUDE_HOOKS_PYTHON_CMD" ]; then
+        echo "$CLAUDE_HOOKS_PYTHON_CMD"
+        return 0
+    fi
+
+    # Try different Python commands in order of preference
+    for cmd in python3 python py; do
+        if command -v "$cmd" &> /dev/null; then
+            local version=$("$cmd" --version 2>&1)
+            if [[ "$version" == *"Python 3"* ]]; then
+                export CLAUDE_HOOKS_PYTHON_CMD="$cmd"
+                echo "$cmd"
+                return 0
+            fi
+        fi
+    done
+
+    # Windows specific: try common installation paths
+    for py_pattern in \
+        "/c/Python3*/python.exe" \
+        "/c/Program Files/Python3*/python.exe" \
+        "/d/Python/Python3*/python.exe" \
+        "/c/Users/*/AppData/Local/Programs/Python/Python3*/python.exe"
+    do
+        for actual_path in $py_pattern; do
+            if [ -f "$actual_path" ]; then
+                local version=$("$actual_path" --version 2>&1)
+                if [[ "$version" == *"Python 3"* ]]; then
+                    export CLAUDE_HOOKS_PYTHON_CMD="$actual_path"
+                    echo "$actual_path"
+                    return 0
+                fi
+            fi
+        done
+    done
+
+    return 1
+}
+
+# =============================================================================
 # CONFIGURATION FUNCTIONS
 # =============================================================================
 
@@ -77,7 +123,20 @@ is_hook_enabled() {
     fi
 
     # Read enabled status from config using Python
-    local enabled=$(python3 <<EOF 2>/dev/null
+    local python_cmd=$(get_python_cmd)
+    if [ -z "$python_cmd" ]; then
+        # If Python not found, use defaults (critical hooks enabled)
+        case "$hook_type" in
+            notification|stop|subagent_stop)
+                return 0  # Enabled by default
+                ;;
+            *)
+                return 1  # Disabled by default
+                ;;
+        esac
+    fi
+
+    local enabled=$("$python_cmd" <<EOF 2>/dev/null
 import json
 import sys
 try:
@@ -100,7 +159,14 @@ get_audio_file() {
 
     # Try to read from config
     if [ -f "$CONFIG_FILE" ]; then
-        local audio_path=$(python3 <<EOF 2>/dev/null
+        local python_cmd=$(get_python_cmd)
+        if [ -z "$python_cmd" ]; then
+            # If Python not found, use default
+            echo "$AUDIO_DIR/default/$default_file"
+            return 0
+        fi
+
+        local audio_path=$("$python_cmd" <<EOF 2>/dev/null
 import json
 try:
     with open("$CONFIG_FILE", "r") as f:
@@ -249,7 +315,13 @@ is_queue_enabled() {
         return 0  # Queue enabled by default
     fi
 
-    local queue_enabled=$(python3 <<EOF 2>/dev/null
+    local python_cmd=$(get_python_cmd)
+    if [ -z "$python_cmd" ]; then
+        # If Python not found, assume queue enabled
+        return 0
+    fi
+
+    local queue_enabled=$("$python_cmd" <<EOF 2>/dev/null
 import json
 try:
     with open("$CONFIG_FILE", "r") as f:
@@ -271,7 +343,14 @@ get_debounce_ms() {
         return
     fi
 
-    python3 <<EOF 2>/dev/null
+    local python_cmd=$(get_python_cmd)
+    if [ -z "$python_cmd" ]; then
+        # If Python not found, use default
+        echo "500"
+        return
+    fi
+
+    "$python_cmd" <<EOF 2>/dev/null
 import json
 try:
     with open("$CONFIG_FILE", "r") as f:
