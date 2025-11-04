@@ -299,18 +299,27 @@ hooks_config = {
 for event_name, script_name in hooks_config.items():
     hook_command = f"{hooks_dir}/{script_name}"
 
-    # Initialize event array if it doesn't exist
-    if event_name not in settings['hooks']:
+    # Clean up old format (object) and convert to new format (array)
+    # Old format: "Stop": {"type": "command", "command": "..."}
+    # New format: "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "..."}]}]
+    if event_name in settings['hooks']:
+        # If the hook is in old object format, remove it
+        if isinstance(settings['hooks'][event_name], dict):
+            print(f"Converting {event_name} from old format to new format")
+            settings['hooks'][event_name] = []
+    else:
+        # Initialize as empty array if doesn't exist
         settings['hooks'][event_name] = []
 
-    # Check if hook already exists
+    # Check if this specific hook already exists in the array
     hook_exists = False
-    for hook_entry in settings['hooks'][event_name]:
-        if 'hooks' in hook_entry:
-            for h in hook_entry['hooks']:
-                if h.get('command') == hook_command:
-                    hook_exists = True
-                    break
+    if isinstance(settings['hooks'][event_name], list):
+        for hook_entry in settings['hooks'][event_name]:
+            if isinstance(hook_entry, dict) and 'hooks' in hook_entry:
+                for h in hook_entry['hooks']:
+                    if isinstance(h, dict) and h.get('command') == hook_command:
+                        hook_exists = True
+                        break
 
     # Add hook if it doesn't exist
     if not hook_exists:

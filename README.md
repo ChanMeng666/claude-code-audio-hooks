@@ -1,11 +1,11 @@
 # Claude Code Audio Hooks 🔊
 
-> **🎉 v2.1.0 Now Available!** Complete installation system with AI-friendly documentation, 95% success rate, and one-command installation. Get notified for task completion, authorization requests, background tasks, and more!
+> **🎉 v2.2.0 Now Available!** Intelligent audio notifications for Claude Code CLI with automatic format compatibility. Get notified for task completion, authorization requests, background tasks, and more!
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-green.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
-[![Installation Success](https://img.shields.io/badge/Installation_Success-95%25-brightgreen.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-v2.0.32%2B-brightgreen.svg)](https://claude.ai/download)
 
 ---
 
@@ -141,7 +141,7 @@ graph TB
 | **Native Linux** | ✅ Fully supported | mpg123/aplay | `bash scripts/install-complete.sh` |
 | **Cygwin** | ✅ Fully supported | PowerShell | `bash scripts/install-complete.sh` |
 
-> **Note for Git Bash Users:** Version 2.1+ includes automatic path conversion to handle Git Bash's Unix-style paths. The installer will configure this automatically—no manual setup required!
+> **Note for Git Bash Users:** Version 2.2+ includes automatic path conversion to handle Git Bash's Unix-style paths. The installer will configure this automatically—no manual setup required!
 
 ### **Quick System Check:**
 
@@ -167,7 +167,7 @@ If Claude Code is missing, install it first. Other prerequisites are usually alr
 **Just copy this to your AI assistant (Claude Code, Cursor, Copilot, ChatGPT, etc.):**
 
 ```
-Please install Claude Code Audio Hooks version 2.1 from
+Please install Claude Code Audio Hooks version 2.2 from
 https://github.com/ChanMeng666/claude-code-audio-hooks and configure it for me.
 Run: git clone https://github.com/ChanMeng666/claude-code-audio-hooks.git && cd claude-code-audio-hooks && bash scripts/install-complete.sh
 ```
@@ -496,7 +496,7 @@ After editing, restart Claude Code for changes to take effect.
 
 ## 🧪 Testing & Verification
 
-### **Environment Detection Tool** (New in v2.1!)
+### **Environment Detection Tool**
 
 Automatically detect your environment and check for issues:
 
@@ -681,7 +681,7 @@ bash scripts/configure.sh
 
 ### **Automatic Upgrade** (Recommended)
 
-The v2.0 installer automatically detects v1.0 and upgrades!
+The installer automatically detects v1.0 and upgrades!
 
 ```bash
 cd ~/claude-code-audio-hooks
@@ -736,9 +736,31 @@ bash scripts/configure.sh
 
 ## 🔧 Troubleshooting
 
+### **⚠️ Note: Upgrading from Older Versions**
+
+If you previously installed this project and see "Expected array, but received object" errors in `claude /doctor`:
+
+**Solution:** Simply re-run the installation script!
+
+```bash
+cd /path/to/claude-code-audio-hooks
+git pull origin master  # Get latest code
+bash scripts/install.sh  # Re-run installation
+```
+
+The installation script will automatically:
+- ✅ Detect old hook format
+- ✅ Clean up old hooks
+- ✅ Install new format hooks
+- ✅ Create a backup of your settings
+
+**No manual migration needed!** The installer handles everything automatically.
+
+---
+
 ### **⚠️ Special Note for Windows Git Bash Users**
 
-If you're using **Git Bash on Windows** and installed successfully but hear no audio, this is likely due to a **path compatibility issue** that has been **automatically fixed in v2.1+**.
+If you're using **Git Bash on Windows** and installed successfully but hear no audio, this is likely due to a **path compatibility issue** that has been **automatically fixed in v2.2+**.
 
 #### **Symptoms:**
 - Installation completes successfully
@@ -763,7 +785,7 @@ bash scripts/test-path-conversion.sh
 Git Bash uses Unix-style paths (`/d/github_repository/...`) while Windows Python expects Windows-style paths (`D:/github_repository/...`). The hooks couldn't read configuration files due to this mismatch.
 
 #### **How we fixed it:**
-Version 2.1+ includes automatic path conversion that:
+Version 2.2+ includes automatic path conversion that:
 - Detects Git Bash environment
 - Converts paths before calling Python
 - Works transparently for all users
@@ -1067,7 +1089,7 @@ Both are useful and enabled by default!
 - Plan confirmation requests
 - Permission prompts
 
-This is CRITICAL - you don't want to miss these! It's v2.0's most important new feature.
+This is CRITICAL - you don't want to miss these! It's one of the most important features.
 
 ### **Q: I'm not technical - can I still use this?**
 
@@ -1120,7 +1142,7 @@ claude-code-audio-hooks/
 ├── scripts/
 │   ├── install-complete.sh         # Complete automated installer (600+ lines)
 │   ├── install.sh                  # Original installer (464 lines)
-│   ├── upgrade.sh                  # v1.0 → v2.0 migration
+│   ├── upgrade.sh                  # v1.0 upgrade script
 │   ├── configure.sh                # Interactive configuration tool
 │   ├── uninstall.sh                # Complete removal
 │   ├── check-setup.sh              # 12-point verification
@@ -1213,7 +1235,7 @@ MIT License - You're free to use, modify, and distribute this project.
 
 **⭐ If this helped you, please star this repo! ⭐**
 
-**Current Version: 2.1.0** - Complete installation system with 95% success rate
+**Current Version: 2.2.0** - Intelligent audio notifications with automatic format compatibility
 
 [Report Bug](https://github.com/ChanMeng666/claude-code-audio-hooks/issues) · [Request Feature](https://github.com/ChanMeng666/claude-code-audio-hooks/issues) · [Ask Question](https://github.com/ChanMeng666/claude-code-audio-hooks/discussions)
 
