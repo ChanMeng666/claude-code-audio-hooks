@@ -402,10 +402,6 @@ sequenceDiagram
     CC->>HS: Stop Event
     HS->>AP: Play task-complete.mp3
     AP-->>User: 🔊 "Task completed successfully"
-
-    style CC fill:#4A90E2
-    style HS fill:#7ED321
-    style AP fill:#F5A623
 ```
 
 ---
