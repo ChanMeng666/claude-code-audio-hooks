@@ -5,6 +5,13 @@ All notable changes to Claude Code Audio Hooks will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2025-11-06
+
+### Fixed
+- Critical bug in configure.sh save_configuration() function that prevented saving on macOS
+- Python heredoc in configure.sh now correctly passes CONFIG_FILE path using shell variable substitution
+- Resolved IndexError when accessing sys.argv[1] in Python heredoc
+
 ## [2.3.0] - 2025-11-06
 
 ### Added
