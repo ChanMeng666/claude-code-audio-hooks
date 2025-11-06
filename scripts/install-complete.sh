@@ -379,7 +379,8 @@ try:
     else:
         settings = {}
 
-    # Add hooks
+    # Add hooks using the new format (Claude Code v2.0.32+)
+    # New format: Each hook is an array of matcher objects containing hooks arrays
     if 'hooks' not in settings:
         settings['hooks'] = {}
 
@@ -396,13 +397,23 @@ try:
     }
 
     for hook_name, hook_path in hooks.items():
-        settings['hooks'][hook_name] = hook_path
+        # Convert to new array format with matcher structure
+        settings['hooks'][hook_name] = [
+            {
+                'hooks': [
+                    {
+                        'type': 'command',
+                        'command': hook_path
+                    }
+                ]
+            }
+        ]
 
     # Save settings
     with open(settings_file, 'w') as f:
         json.dump(settings, f, indent=2)
 
-    print(f"Configured {len(hooks)} hooks in settings.json")
+    print(f"Configured {len(hooks)} hooks in settings.json (new format)")
     sys.exit(0)
 
 except Exception as e:

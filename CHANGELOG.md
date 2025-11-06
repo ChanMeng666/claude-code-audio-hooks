@@ -5,6 +5,49 @@ All notable changes to Claude Code Audio Hooks will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2] - 2025-11-07
+
+### 🐛 Critical Bug Fix: Hooks Format Compatibility
+
+Fixed critical issue where installer generated deprecated hooks format, causing Claude Code to report invalid settings.
+
+### Fixed
+- **Installer generates deprecated hooks format**:
+  - `install-complete.sh` was creating hooks as strings (old format)
+  - Claude Code v2.0.32+ requires array format with matchers
+  - Updated Python script to generate new format: `[{"hooks": [{"type": "command", "command": "path"}]}]`
+  - Affected all 9 hook types during installation
+
+### Impact
+- ✅ **Fixes `/doctor` reporting "Invalid Settings"** errors
+- ✅ **Ensures hooks work immediately** after installation
+- ✅ **Compatible with Claude Code v2.0.32+** (current version)
+- ✅ **No breaking changes** - upgrade path is seamless
+
+### Technical Details
+```python
+# Before (old format - fails validation)
+settings['hooks']['Notification'] = '~/.claude/hooks/notification_hook.sh'
+
+# After (new format - passes validation)
+settings['hooks']['Notification'] = [
+    {
+        'hooks': [
+            {
+                'type': 'command',
+                'command': '~/.claude/hooks/notification_hook.sh'
+            }
+        ]
+    }
+]
+```
+
+### Migration
+Users who installed with older versions can:
+1. Re-run `bash scripts/install-complete.sh` to regenerate settings
+2. Or manually update `~/.claude/settings.json` to use new format
+3. See [hooks documentation](https://code.claude.com/docs/en/hooks) for details
+
 ## [3.3.1] - 2025-11-06
 
 ### 🐛 Critical Bug Fixes: Installation Script Stability
