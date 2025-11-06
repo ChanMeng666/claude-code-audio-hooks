@@ -1,9 +1,9 @@
 # Claude Code Audio Hooks 🔊
 
-> **🎉 v3.2.0 Now Available!** Dual-mode configuration tool - now usable by both humans AND Claude Code! Programmatic CLI interface added!
+> **🎉 v3.3.0 Now Available!** Full automation support! All scripts (install/uninstall/configure) now support non-interactive mode for Claude Code!
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-green.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-v2.0.32%2B-brightgreen.svg)](https://claude.ai/download)
 
@@ -170,7 +170,7 @@ If Claude Code is missing, install it first. Other prerequisites are usually alr
 **Just copy this to your AI assistant (Claude Code, Cursor, Copilot, ChatGPT, etc.):**
 
 ```
-Please install Claude Code Audio Hooks version 3.2.0 from
+Please install Claude Code Audio Hooks version 3.3.0 from
 https://github.com/ChanMeng666/claude-code-audio-hooks and configure it for me.
 Run: git clone https://github.com/ChanMeng666/claude-code-audio-hooks.git && cd claude-code-audio-hooks && bash scripts/install-complete.sh
 ```
@@ -207,6 +207,36 @@ claude "What is 2+2?"
 
 **Success Rate:** 98%+
 **Installation Time:** 1-2 minutes
+
+---
+
+### **🤖 Non-Interactive Installation** (For Claude Code & Automation)
+
+Both installation and uninstallation scripts support **non-interactive mode** - perfect for Claude Code and automation!
+
+**Install without prompts:**
+```bash
+# Skips audio test prompt, completes fully automated
+bash scripts/install-complete.sh --yes
+```
+
+**Uninstall without prompts:**
+```bash
+# Auto-confirms all removals, creates backups
+bash scripts/uninstall.sh --yes
+```
+
+**Claude Code can now:**
+- ✅ Install automatically (no user input needed)
+- ✅ Uninstall automatically (no confirmations needed)
+- ✅ Configure hooks programmatically (via configure.sh CLI)
+- ✅ Fully automate setup and teardown
+
+**Options:**
+- `--yes` or `-y` - Run in non-interactive mode
+- `--help` or `-h` - Show usage documentation
+
+**Note:** Non-interactive mode is perfect for CI/CD pipelines, deployment scripts, and AI assistants like Claude Code!
 
 ---
 

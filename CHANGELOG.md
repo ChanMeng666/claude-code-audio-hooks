@@ -5,6 +5,61 @@ All notable changes to Claude Code Audio Hooks will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2025-11-06
+
+### 🤖 Full Automation Support: Non-Interactive Mode for All Scripts
+
+All core scripts (`install-complete.sh`, `uninstall.sh`, `configure.sh`) now support **non-interactive mode** - enabling complete automation by Claude Code and scripts!
+
+### Added
+- **Non-interactive mode for `install-complete.sh`**:
+  - `--yes`/`-y`/`--non-interactive` - Skip audio test prompt
+  - `--help` - Show comprehensive usage guide
+  - Auto-completes installation without user input
+
+- **Non-interactive mode for `uninstall.sh`**:
+  - `--yes`/`-y`/`--non-interactive` - Auto-confirm all removals
+  - `--help` - Show comprehensive usage guide
+  - Automatically removes: hooks, settings, config, audio files
+  - Creates backups before deletion
+  - Zero prompts, full automation
+
+### Changed
+- **Version updates**:
+  - `install-complete.sh` → v3.2.0
+  - `uninstall.sh` → v3.2
+  - Added version info in script headers
+
+### Enhanced
+- **Complete Claude Code Automation** - AI assistants can now:
+  - Install without prompts: `bash install-complete.sh --yes`
+  - Uninstall without prompts: `bash uninstall.sh --yes`
+  - Configure hooks: `bash configure.sh --enable notification`
+  - Fully automate entire lifecycle
+
+- **CI/CD Ready**:
+  - Perfect for deployment pipelines
+  - Scriptable setup and teardown
+  - No TTY required
+
+### Impact
+- ✅ **100% non-interactive capability** across all scripts
+- ✅ **Claude Code can fully automate** install/uninstall/configure
+- ✅ **Zero user input required** for automation
+- ✅ **Backward compatible** - interactive mode still default
+
+### Examples
+```bash
+# Full automated installation
+bash scripts/install-complete.sh --yes
+
+# Full automated uninstallation
+bash scripts/uninstall.sh --yes
+
+# Configure hooks programmatically
+bash scripts/configure.sh --enable notification stop --disable pretooluse
+```
+
 ## [3.2.0] - 2025-11-06
 
 ### 🤖 Major Enhancement: Dual-Mode Configuration Tool

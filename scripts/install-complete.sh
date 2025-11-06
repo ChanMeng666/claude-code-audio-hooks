@@ -1,8 +1,9 @@
 #!/bin/bash
 # Claude Code Audio Hooks - Complete Installation Script
-# Version: 3.0.0
+# Version: 3.2.0
 # This script handles the complete installation process automatically
 # Now with integrated environment detection, platform fixes, and validation
+# Supports non-interactive mode for Claude Code and automation
 
 set -eo pipefail  # Exit on pipe failures, but continue on errors for better handling
 
@@ -10,10 +11,13 @@ set -eo pipefail  # Exit on pipe failures, but continue on errors for better han
 # CONFIGURATION
 # =============================================================================
 
-VERSION="3.0.0"
+VERSION="3.2.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_FILE="/tmp/claude_hooks_install_$(date +%Y%m%d_%H%M%S).log"
+
+# Non-interactive mode flag (can be set via --yes or --no-prompt)
+NON_INTERACTIVE=false
 
 # Colors
 RED='\033[0;31m'
@@ -633,6 +637,14 @@ step_run_tests() {
 step_offer_audio_test() {
     print_step "Audio Testing"
 
+    # Skip prompt in non-interactive mode
+    if [ "$NON_INTERACTIVE" = true ]; then
+        log ""
+        print_info "Skipping audio test (non-interactive mode)"
+        print_info "You can test audio later with: bash scripts/test-audio.sh"
+        return 0
+    fi
+
     log ""
     print_info "Would you like to test audio playback now? (y/N)"
     read -r -t 30 response || response="n"
@@ -766,5 +778,65 @@ main() {
     fi
 }
 
+# =============================================================================
+# ARGUMENT PROCESSING
+# =============================================================================
+
+# Parse command line arguments
+parse_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --yes|-y|--non-interactive)
+                NON_INTERACTIVE=true
+                shift
+                ;;
+            --help|-h)
+                cat << EOF
+${BOLD}Claude Code Audio Hooks - Installation Script${RESET}
+
+${CYAN}USAGE:${RESET}
+  $0 [OPTIONS]
+
+${CYAN}OPTIONS:${RESET}
+  ${BOLD}--yes, -y, --non-interactive${RESET}
+    Run in non-interactive mode (skip all prompts)
+    Perfect for Claude Code and automation scripts
+
+  ${BOLD}--help, -h${RESET}
+    Show this help message
+
+${CYAN}INTERACTIVE MODE${RESET} (default):
+  Will prompt for audio testing after installation
+
+${CYAN}NON-INTERACTIVE MODE${RESET} (--yes):
+  Skips all prompts, auto-accepts defaults
+  Installation completes without user input
+
+${CYAN}EXAMPLES:${RESET}
+  # Interactive installation (prompts for audio test)
+  bash scripts/install-complete.sh
+
+  # Non-interactive installation (for Claude Code/automation)
+  bash scripts/install-complete.sh --yes
+
+  # Short form
+  bash scripts/install-complete.sh -y
+
+${YELLOW}Note:${RESET} Installation log saved to: /tmp/claude_hooks_install_*.log
+EOF
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Error: Unknown option '$1'${RESET}" >&2
+                echo "Run '$0 --help' for usage information" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Parse arguments before running main
+parse_args "$@"
+
 # Run main function
-main "$@"
+main
