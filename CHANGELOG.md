@@ -5,6 +5,43 @@ All notable changes to Claude Code Audio Hooks will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-11-06
+
+### Added
+- **Dual Audio System**: Complete flexibility to choose between voice and non-voice notifications
+  - 9 new modern UI chime sound effects in `audio/custom/` directory
+  - 9 refreshed voice notifications in `audio/default/` directory (Jessica voice from ElevenLabs)
+- **Pre-configured Examples**:
+  - `config/example_preferences_chimes.json` - All chimes configuration
+  - `config/example_preferences_mixed.json` - Mixed voice and chimes with scenario templates
+- **Audio Customization Documentation**: New comprehensive section in README explaining:
+  - Three audio options (voice-only, chimes-only, mixed)
+  - Quick-start guide for switching to chimes
+  - Available audio files comparison table
+  - Configuration scenarios for different use cases
+- **User Choice Philosophy**: System now supports complete user customization
+  - Default configuration uses voice (existing behavior preserved)
+  - Users can easily switch to chimes or create mixed configurations
+  - Simple one-file configuration change to switch audio sets
+
+### Changed
+- README.md updated with new "Audio Customization Options" section
+- Version badges updated to v2.4.0
+- Table of Contents updated with new audio customization section
+
+### Enhanced
+- User flexibility: Users can now choose audio style based on personal preference
+- Music-friendly option: Chimes don't interfere with background music
+- Mixed configurations: Different audio types for different notification priorities
+
+### Background
+This release addresses user feedback requesting non-voice notification options, particularly for users who:
+- Play music while coding
+- Prefer instrumental sounds over AI voices
+- Want different audio styles for different notification types
+
+The dual audio system maintains backward compatibility (default voice notifications) while providing complete flexibility for users who want alternatives.
+
 ## [2.3.1] - 2025-11-06
 
 ### Fixed

@@ -1,0 +1,30 @@
+{
+  "comment": "Example configuration using ONLY non-voice chime sounds",
+  "description": "This configuration uses modern UI sound effects (chimes) instead of voice notifications. Perfect for users who prefer instrumental sounds or work with music playing.",
+  "enabled_hooks": [
+    "notification",
+    "stop",
+    "subagent"
+  ],
+  "audio_files": {
+    "notification": "custom/chime-notification-urgent.mp3",
+    "stop": "custom/chime-task-complete.mp3",
+    "subagent": "custom/chime-subagent-complete.mp3",
+    "pretooluse": "custom/chime-task-starting.mp3",
+    "posttooluse": "custom/chime-task-progress.mp3",
+    "userpromptsubmit": "custom/chime-prompt-received.mp3",
+    "precompact": "custom/chime-notification-info.mp3",
+    "session_start": "custom/chime-session-start.mp3",
+    "session_end": "custom/chime-session-end.mp3"
+  },
+  "usage_instructions": [
+    "To use chime sounds system-wide:",
+    "1. Copy this entire file content",
+    "2. Paste into config/user_preferences.json",
+    "3. Run: bash scripts/test-audio.sh",
+    "4. Verify chimes play correctly",
+    "",
+    "Note: You can enable additional hooks by adding them to 'enabled_hooks' array.",
+    "Example: Add 'pretooluse' to hear a chime before each tool execution."
+  ]
+}

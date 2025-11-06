@@ -1,9 +1,9 @@
 # Claude Code Audio Hooks 🔊
 
-> **🎉 v2.3.1 Now Available!** Critical macOS bug fix! Full compatibility with bash 3.2+. Intelligent audio notifications for Claude Code CLI. Get notified for task completion, authorization requests, background tasks, and more!
+> **🎉 v2.4.0 Now Available!** Dual audio system: Choose between voice notifications or modern UI chimes! Intelligent audio notifications for Claude Code CLI. Get notified for task completion, authorization requests, background tasks, and more!
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-green.svg)](https://github.com/ChanMeng666/claude-code-audio-hooks)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-v2.0.32%2B-brightgreen.svg)](https://claude.ai/download)
 
@@ -24,6 +24,7 @@ https://github.com/user-attachments/assets/a9919363-f76c-4dd2-9141-e1c681573d75
 - [Hook Execution Flow](#-hook-execution-flow)
 - [Configuration](#-configuration)
 - [Testing & Verification](#-testing--verification)
+- [Audio Customization Options](#-audio-customization-options)
 - [Customization](#-customization)
 - [Upgrading from v1.0](#-upgrading-from-v10)
 - [Troubleshooting](#-troubleshooting)
@@ -614,6 +615,171 @@ claude "Explain how HTTP works in detail"
 ```
 
 You should hear notifications at appropriate events!
+
+---
+
+## 🎵 Audio Customization Options
+
+Starting from v2.4.0, you have **complete flexibility** in choosing your audio notifications! The project now includes **two complete audio sets**:
+
+### **🎤 Option 1: Voice Notifications (Default)**
+Professional ElevenLabs voice recordings in `audio/default/` - perfect for clear, spoken alerts.
+
+### **🔔 Option 2: Non-Voice Chimes**
+Modern UI sound effects in `audio/custom/` - ideal for users who:
+- Play music while coding
+- Prefer instrumental sounds
+- Dislike AI voices
+- Want subtle, non-intrusive notifications
+
+### **🎨 Option 3: Mixed Configuration**
+Customize each hook individually - use chimes for some, voice for others!
+
+---
+
+### **Quick Start: Switch to Chimes**
+
+Want to use chimes instead of voice? Just copy the pre-configured example:
+
+```bash
+cd ~/claude-code-audio-hooks
+
+# Backup your current config (optional)
+cp config/user_preferences.json config/user_preferences.backup.json
+
+# Switch to all-chimes configuration
+cp config/example_preferences_chimes.json config/user_preferences.json
+
+# Test the new sounds
+bash scripts/test-audio.sh
+
+# Restart Claude Code
+# Close and reopen your terminal
+```
+
+That's it! Now all your notifications will use modern UI chimes instead of voice.
+
+---
+
+### **Advanced: Mixed Audio Configuration**
+
+Want chimes for permission requests but voice for task completion? Use the mixed example:
+
+```bash
+cd ~/claude-code-audio-hooks
+
+# Use the mixed configuration template
+cp config/example_preferences_mixed.json config/user_preferences.json
+
+# Or customize it yourself by editing:
+nano config/user_preferences.json
+```
+
+**Example mixed configuration:**
+```json
+{
+  "enabled_hooks": ["notification", "stop", "subagent"],
+  "audio_files": {
+    "notification": "custom/chime-notification-urgent.mp3",  // Chime for permissions
+    "stop": "default/task-complete.mp3",                     // Voice for completion
+    "subagent": "custom/chime-subagent-complete.mp3"         // Chime for background tasks
+  }
+}
+```
+
+---
+
+### **Available Audio Files**
+
+#### **Voice Files** (`audio/default/`)
+All narrated by Jessica voice from ElevenLabs:
+
+| File | Hook | Description |
+|------|------|-------------|
+| `notification-urgent.mp3` | notification | "Attention! Claude needs your authorization." |
+| `task-complete.mp3` | stop | "Task completed successfully!" |
+| `subagent-complete.mp3` | subagent | "Background task finished!" |
+| `task-starting.mp3` | pretooluse | "Executing tool..." |
+| `task-progress.mp3` | posttooluse | "Tool execution complete." |
+| `prompt-received.mp3` | userprompt | "Prompt received." |
+| `notification-info.mp3` | precompact | "Compacting conversation history..." |
+| `session-start.mp3` | session_start | "Claude Code session started." |
+| `session-end.mp3` | session_end | "Session ended." |
+
+#### **Chime Files** (`audio/custom/`)
+Modern UI sound effects:
+
+| File | Hook | Description |
+|------|------|-------------|
+| `chime-notification-urgent.mp3` | notification | Attention chime for permissions |
+| `chime-task-complete.mp3` | stop | Pleasant completion sound |
+| `chime-subagent-complete.mp3` | subagent | Background task done chime |
+| `chime-task-starting.mp3` | pretooluse | Brief startup chime |
+| `chime-task-progress.mp3` | posttooluse | Progress indicator chime |
+| `chime-prompt-received.mp3` | userprompt | Prompt acknowledgment chime |
+| `chime-notification-info.mp3` | precompact | Info notification chime |
+| `chime-session-start.mp3` | session_start | Welcome chime |
+| `chime-session-end.mp3` | session_end | Goodbye chime |
+
+---
+
+### **Configuration Examples**
+
+#### **Scenario 1: Music-Friendly Setup**
+You play music while coding and only need alerts for permission requests:
+
+```json
+{
+  "enabled_hooks": ["notification"],
+  "audio_files": {
+    "notification": "custom/chime-notification-urgent.mp3"
+  }
+}
+```
+
+#### **Scenario 2: Minimal Voice**
+Chimes for frequent events, voice for important completions:
+
+```json
+{
+  "enabled_hooks": ["notification", "stop", "subagent"],
+  "audio_files": {
+    "notification": "custom/chime-notification-urgent.mp3",
+    "stop": "default/task-complete.mp3",
+    "subagent": "default/subagent-complete.mp3"
+  }
+}
+```
+
+#### **Scenario 3: Granular Control**
+Different sounds for different workflow stages:
+
+```json
+{
+  "enabled_hooks": ["notification", "stop", "pretooluse"],
+  "audio_files": {
+    "notification": "custom/chime-notification-urgent.mp3",
+    "pretooluse": "custom/chime-task-starting.mp3",
+    "stop": "default/task-complete.mp3"
+  }
+}
+```
+
+---
+
+### **Testing Your Configuration**
+
+After changing audio files, test immediately:
+
+```bash
+# Test all enabled hooks
+bash scripts/test-audio.sh
+
+# Choose option 1 to test your enabled hooks
+# You'll hear each audio file play in sequence
+```
+
+**Remember:** Restart Claude Code after configuration changes!
 
 ---
 
@@ -1241,7 +1407,7 @@ MIT License - You're free to use, modify, and distribute this project.
 
 **⭐ If this helped you, please star this repo! ⭐**
 
-**Current Version: 2.3.0** - Full macOS bash 3.2+ compatibility with intelligent audio notifications
+**Current Version: 2.4.0** - Dual audio system with voice and chime options for maximum flexibility
 
 [Report Bug](https://github.com/ChanMeng666/claude-code-audio-hooks/issues) · [Request Feature](https://github.com/ChanMeng666/claude-code-audio-hooks/issues) · [Ask Question](https://github.com/ChanMeng666/claude-code-audio-hooks/discussions)
 
