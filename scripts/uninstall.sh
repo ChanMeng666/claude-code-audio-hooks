@@ -112,7 +112,7 @@ echo -e "${CYAN}Backups saved to: $BACKUP_DIR${NC}\n"
 
 echo -e "${BLUE}${BOLD}Removing hook scripts...${NC}\n"
 
-local removed=0
+removed=0
 for script in "${HOOK_SCRIPTS[@]}"; do
     if [ -f "$HOOKS_DIR/$script" ]; then
         rm "$HOOKS_DIR/$script"
