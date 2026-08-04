@@ -1,6 +1,6 @@
 # Natural-Language Control
 
-echook is **AI-operated**: you never memorise CLI flags. You tell your AI agent (Claude Code, Cursor's agent, or Codex CLI) what you want in plain English, and it runs the right `audio-hooks` subcommand, reads the JSON output, and reports back. Every configuration is one message.
+echook is configured **in natural language**: you never memorise CLI flags. You tell your AI agent (Claude Code, Cursor's agent, or Codex CLI) what you want in plain English, and it runs the right `audio-hooks` subcommand, reads the JSON output, and reports back. Every configuration is one message.
 
 This page is the **complete reference of example prompts**. You don't need to copy them verbatim — paraphrase freely. Not sure what's possible? Just ask your agent **"what can I configure in echook?"** and it will list every option.
 

@@ -4,11 +4,11 @@
 
 # echook
 
-**AI-operated audio notification system for Claude Code, Cursor IDE, and Codex CLI.**<br/>
-You type one slash command at install time. Then natural language forever.<br/>
-Hear when your agent finishes, needs permission, or hits a rate limit — and pin a context-usage status line so you never lose your place.
+**Audio and out-of-band notifications for Claude Code, Cursor IDE, and Codex CLI.**<br/>
+You configure it by talking to your agent — every setting is one sentence, not a JSON edit.<br/>
+Hear when your agent finishes, needs permission, or hits a rate limit — plus an optional context-usage status line.
 
-<sub>**v6.2.0** — 39 hook events across all three editors · 2 audio themes · webhooks · TTS · rate-limit alerts · status line. Renamed `claude-code-audio-hooks` → **echook** (Echo + Hook) in 5.2.1; existing installs keep working. Full history in the [CHANGELOG](./CHANGELOG.md).</sub>
+<sub>**v6.4.0** — 37 hook events and 30 matcher variants across all three editors · 2 audio themes · webhooks · TTS · rate-limit alerts · status line. Renamed `claude-code-audio-hooks` → **echook** (Echo + Hook) in 5.2.1; existing installs keep working. Full history in the [CHANGELOG](./CHANGELOG.md).</sub>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Latest Release](https://img.shields.io/github/v/release/ChanMeng666/echook?label=release&color=blue&sort=semver)](https://github.com/ChanMeng666/echook/releases/latest)
@@ -36,13 +36,13 @@ https://github.com/user-attachments/assets/804dff1e-56d8-49b2-b0c0-6706f3eeccd4
 
 </div>
 
-> ## 🤖 This is an AI-Agent-first project — you don't read this, your agent does
+> ## 🤖 Install and configure this by asking your agent — there is no hand-edit path
 >
 > **Humans: don't install or configure echook by hand.** Point your AI agent — **Claude Code, Cursor, or Codex** — at this repo and say:
 >
 > > *"Install echook from `github.com/ChanMeng666/echook` and set it up for me."*
 >
-> Your agent reads the docs, runs every command, verifies the result, and reports back. The agent-facing source of truth is [`AGENTS.md`](AGENTS.md) + [`llms.txt`](llms.txt) + the live `audio-hooks manifest`. The only thing a human ever types by hand is one `/reload-plugins` slash command (Claude Code has no CLI equivalent for it).
+> Your agent reads the docs, runs every command, verifies the result, and reports back. The agent-facing source of truth is [`AGENTS.md`](AGENTS.md) + [`llms.txt`](llms.txt) + the live `audio-hooks manifest`. Every capability is a non-interactive subcommand that takes and returns JSON, and hand-editing `user_preferences.json` is unsupported by design. Two things an agent still can't do for you: type `/reload-plugins` on Claude Code (no CLI equivalent), and restart the editor once on the Cursor and Codex install paths.
 >
 > **All a human needs to know is what echook _does_** — skim [Key Features](#key-features) below — so you can ask your agent for it in plain English: *"mute audio for an hour"*, *"switch to chimes"*, *"watch my `.env` file"*, *"put a context-usage bar in my status line"*. Not sure what's possible? Just ask your agent **"what can I configure in echook?"**
 
@@ -65,9 +65,9 @@ https://github.com/user-attachments/assets/804dff1e-56d8-49b2-b0c0-6706f3eeccd4
 
 ## What's New
 
-**Latest: v6.2.0 — complete hook coverage + per-tool-type sounds on Cursor.** 13 new lifecycle events (26 → 39 total): Claude Code's `Setup` / `UserPromptExpansion` / `PostToolBatch` / `MessageDisplay`, plus Cursor's **granular per-tool-type events** so shell commands, MCP calls, and file reads each get a *distinct* sound. All new events are opt-in.
+**Latest: v6.4.0 — per-variant toggles + the full `Notification` matcher set.** Each of the 30 matcher variants is now switchable on its own (before, every variant of an event shared one flag), the four `Notification` matchers echook was missing are registered, and `filters.stop.skip_if_background_tasks_running` keeps the turn-end sound quiet while subagents are still running. All new variants ship opt-in.
 
-Earlier highlights: **v6.1.0** pinned the Claude Code startup banner into the status line with auto-reflow · **v6.0.0** refocused echook to two tracks (audio/notification + status line) and made every operation a non-interactive CLI command.
+Earlier highlights: **v6.3.4** removed `worktree_create` / `worktree_remove` — they hijacked Claude Code's own provider hook and broke worktree isolation — taking the event count from 39 to **37** · **v6.3.0** grew the status line to 29 segments · **v6.2.0** added 13 lifecycle events, including Cursor's **granular per-tool-type events** so shell commands, MCP calls, and file reads each get a *distinct* sound.
 
 📜 **Full version history → [CHANGELOG.md](./CHANGELOG.md)** · [GitHub Releases](https://github.com/ChanMeng666/echook/releases)
 
@@ -75,7 +75,9 @@ Earlier highlights: **v6.1.0** pinned the Claude Code startup banner into the st
 
 ## Key Features
 
-echook does exactly two things, and does them well: **(1)** tells you *what just happened* in your AI session when you're not watching the window — a sound at your desk, a spoken summary when you're away, a desktop toast or webhook when you're in another app — and **(2)** a **status line** that keeps the facts you need pinned to the bottom of the terminal.
+echook does exactly two things: **(1)** tells you *what just happened* in your AI session when you're not watching the window — a sound at your desk, a spoken summary when you're away, a desktop toast or webhook when you're in another app — and **(2)** a **status line** that keeps the facts you need pinned to the bottom of the terminal.
+
+> **If you're comparing.** Claude Code can already ring the terminal bell, pop a desktop notification in Ghostty/Kitty/iTerm2, and push to your phone, and Anthropic publishes a four-line `afplay` hook you can paste into `settings.json`. **If one sound for everything is enough, that is the right answer and it costs nothing.** Others cover this ground too: [peon-ping](https://github.com/PeonPing/peon-ping) supports far more harnesses and groups events into 7 sound categories; [claudio](https://github.com/ctoth/claudio) does Claude Code + Codex audio; [anotifier](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor) does desktop/phone notifications for Claude Code, Codex, Gemini and Cursor; and Cursor 3.2.16+ executes Claude Code hooks natively. echook's difference is *which* of 37 events you hear, per-event on all three editors, configured by talking to your agent rather than by editing JSON.
 
 ### 🔔 Audio & out-of-band notifications
 
@@ -134,7 +136,7 @@ Most richer segments self-omit when Claude Code doesn't supply their data, so a 
 
 | Feature | What it does |
 |---|---|
-| **37 hook events · 30 matcher variants** | Full lifecycle coverage across Claude Code, Cursor & Codex — session start, tool use, permission requests, rate-limit warnings, and Cursor's granular shell/MCP/file events. 6 on by default; toggle any in plain English. |
+| **37 hook events · 30 matcher variants** | Across Claude Code, Cursor & Codex — session start, tool use, permission requests, rate-limit warnings, and Cursor's granular shell/MCP/file events. The three editors document 63 events between them; echook maps 37, each to its own sound. 3 on by default; toggle any in plain English. |
 | **2 audio themes** | `default` = ElevenLabs **Jessica** voice (*"Task completed"*) · `custom` = modern UI chimes. Say *"switch to chimes"*. |
 | **Rate-limit alerts** | One-shot warning at 80% / 95% of your 5-hour or 7-day quota — warned once per threshold, never spammed. |
 | **Webhooks** | Versioned `audio-hooks.webhook.v1` payload, fire-and-forget, never blocks a hook. |
@@ -147,10 +149,10 @@ Most richer segments self-omit when Claude Code doesn't supply their data, so a 
 |---|:-:|---|---|
 | `notification` | on | notification-urgent.mp3 | `permission_prompt` / `idle_prompt` / `auth_success` / `elicitation_dialog` / `elicitation_complete` / `elicitation_response` / `agent_needs_input` / `agent_completed` (last four v6.4, off by default) |
 | `stop` | on | task-complete.mp3 | |
-| `subagent_stop` | on | subagent-complete.mp3 | agent type |
+| `subagent_stop` | | subagent-complete.mp3 | agent type |
 | `permission_request` | on | permission-request.mp3 | tool name |
-| `permission_denied` | on | permission-denied.mp3 | |
-| `task_created` | on | task-created.mp3 | |
+| `permission_denied` | | permission-denied.mp3 | |
+| `task_created` | | task-created.mp3 | |
 | `task_completed` | | team-task-done.mp3 | |
 | `session_start` | | session-start.mp3 | `startup` / `resume` / `clear` / `compact` |
 | `session_end` | | session-end.mp3 | `clear` / `resume` / `logout` / `prompt_input_exit` |
@@ -178,7 +180,7 @@ Run `audio-hooks hooks list` for the live state, or see the [CLI & Configuration
 
 ## Get Started
 
-This is an **AI-first** project — you don't follow install steps yourself. You tell your AI agent what to do in plain English, and it runs every command and reports back.
+You don't follow install steps yourself. You tell your AI agent what to do in plain English, and it runs every command and reports back.
 
 ```mermaid
 flowchart TB
@@ -207,7 +209,7 @@ flowchart TB
 
 | Your editor / CLI | Tell your AI agent |
 |---|---|
-| **Claude Code** | *"Install the audio-hooks plugin from `github.com/ChanMeng666/echook`."* (Then type `/reload-plugins` once — the only manual step.) |
+| **Claude Code** | *"Install the audio-hooks plugin from `github.com/ChanMeng666/echook`."* (Then type `/reload-plugins` once — Claude Code has no CLI equivalent for it.) |
 | **Cursor** (with Claude Code) | Nothing to install — Cursor 3.2.16+ auto-bridges the Claude Code plugin. *"Run `audio-hooks status` and confirm `editor_targets.cursor.state` is `bridged-via-claude-code`."* |
 | **Cursor** (without Claude Code) | *"Clone `github.com/ChanMeng666/echook` into `~/audio-hooks`, run `python ~/audio-hooks/bin/audio-hooks install --cursor`, then verify with `audio-hooks status` + `audio-hooks test all`."* |
 | **Codex** | *"Install the audio-hooks Codex plugin from `github.com/ChanMeng666/echook`, then verify with `audio-hooks status` + `audio-hooks test all`."* |
@@ -341,7 +343,7 @@ Python 3.6+ is the only runtime requirement.
 <tr>
 <td>
 
-**Design Philosophy** — This project is **AI-operated**, not AI-assisted. A typical CLI tool: the human learns the tool. **echook**: the human says what they want, and the AI agent learns the tool and does the work. The human is **upstream** of the agent, not downstream of the CLI.
+**Design note** — echook has no interactive path. Every capability is a non-interactive `audio-hooks` subcommand that takes and returns JSON; hand-editing `user_preferences.json` is unsupported by design; and `audio-hooks manifest` builds its hook list from the live catalogue in the code, so what it reports is what actually ships. That is what makes *"just tell your agent what you want"* work in practice — the agent has a machine-readable surface to drive instead of a config file to guess at.
 
 </td>
 </tr>
@@ -404,19 +406,19 @@ This project is licensed under the **MIT License** — see [LICENSE](LICENSE) fo
 [back-to-top]: https://img.shields.io/badge/-BACK_TO_TOP-black?style=flat-square
 
 [share-x-shield]: https://img.shields.io/badge/-Share%20on%20X-black?labelColor=black&logo=x&logoColor=white&style=flat-square
-[share-x-link]: https://x.com/intent/tweet?text=Check%20out%20echook%20-%20AI-operated%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
+[share-x-link]: https://x.com/intent/tweet?text=Check%20out%20echook%20-%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex%2C%20configured%20in%20natural%20language&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
 
 [share-linkedin-shield]: https://img.shields.io/badge/-Share%20on%20LinkedIn-blue?labelColor=blue&logo=linkedin&logoColor=white&style=flat-square
 [share-linkedin-link]: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
 
 [share-reddit-shield]: https://img.shields.io/badge/-Share%20on%20Reddit-orange?labelColor=black&logo=reddit&logoColor=white&style=flat-square
-[share-reddit-link]: https://www.reddit.com/submit?title=echook%20-%20AI-operated%20audio%20notifications&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
+[share-reddit-link]: https://www.reddit.com/submit?title=echook%20-%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
 
 [share-telegram-shield]: https://img.shields.io/badge/-Share%20on%20Telegram-blue?labelColor=blue&logo=telegram&logoColor=white&style=flat-square
-[share-telegram-link]: https://t.me/share/url?text=echook%20-%20AI-operated%20audio%20notifications&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
+[share-telegram-link]: https://t.me/share/url?text=echook%20-%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex&url=https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
 
 [share-whatsapp-shield]: https://img.shields.io/badge/-Share%20on%20WhatsApp-green?labelColor=green&logo=whatsapp&logoColor=white&style=flat-square
-[share-whatsapp-link]: https://api.whatsapp.com/send?text=Check%20out%20echook%20-%20AI-operated%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex%20https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
+[share-whatsapp-link]: https://api.whatsapp.com/send?text=Check%20out%20echook%20-%20audio%20notifications%20for%20Claude%20Code%2C%20Cursor%20%26%20Codex%2C%20configured%20in%20natural%20language%20https%3A%2F%2Fgithub.com%2FChanMeng666%2Fechook
 
 ---
 
