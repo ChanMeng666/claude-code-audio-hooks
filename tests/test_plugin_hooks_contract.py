@@ -62,16 +62,15 @@ AUDIO_DIR = REPO / "audio"
 # registered as their own matcher in hooks.json. Each needs a reason, because
 # the default assumption for an unregistered key is "this is a bug".
 INTENTIONALLY_UNREGISTERED: Dict[str, str] = {
-    # StopFailure collapses its five low-signal error types onto a single
-    # handler (matcher "billing_error|invalid_request|server_error|
-    # max_output_tokens|unknown" → arg "stop_failure_other"). The per-type keys
-    # stay in the map so the audio table can distinguish them if the collapse is
-    # ever unwound.
-    "stop_failure_billing_error": "collapsed into stop_failure_other",
-    "stop_failure_invalid_request": "collapsed into stop_failure_other",
-    "stop_failure_server_error": "collapsed into stop_failure_other",
-    "stop_failure_max_output_tokens": "collapsed into stop_failure_other",
-    "stop_failure_unknown": "collapsed into stop_failure_other",
+    # Empty since v6.4.1. Until then StopFailure collapsed five of its error
+    # types onto one "stop_failure_other" handler, so their per-variant toggles
+    # silently did nothing while `hooks list --variants` advertised them as
+    # switchable. v6.4.1 registers one handler per real upstream error_type and
+    # drops "other", which was never a Claude Code value in the first place.
+    #
+    # Keep this dict as the escape hatch it is: anything added here must state
+    # why the variant exists in SYNTHETIC_EVENT_MAP but is deliberately not
+    # reachable from the template.
 }
 
 # The command string format is:
@@ -283,3 +282,165 @@ class TestCatalogPreferencesContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class TestManifestEditorSurface(unittest.TestCase):
+    """``supported_editors["claude-code"].events`` must equal what we register.
+
+    CLAUDE.md tells operators the manifest is the live source of truth, so a
+    wrong list here is not cosmetic — it is what an agent reads before deciding
+    what echook can do. Until v6.4.1 this field was derived from
+    ``HOOK_CATALOG`` and therefore claimed all 37 canonical events, including
+    the nine Cursor-only ones the Claude Code template never registers.
+
+    This also anchors drift detection: if a later edit adds an event to the
+    catalog but forgets the template (or the reverse), the sets diverge here.
+    """
+
+    CURSOR_ONLY = {
+        "shell_before", "shell_after", "mcp_before", "mcp_after",
+        "file_read", "agent_response", "agent_thinking",
+        "workspace_open", "tab_file_edit",
+    }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        template: Dict[str, Any] = json.loads(CC_TEMPLATE.read_text(encoding="utf-8"))
+        runner = _load_hook_runner()
+        synthetic = dict(runner.SYNTHETIC_EVENT_MAP)
+        cls.registered: Set[str] = set()
+        for groups in template.get("hooks", {}).values():
+            for group in groups:
+                for handler in group.get("hooks", []):
+                    match = _ARG_RE.search(handler.get("command", ""))
+                    if not match:
+                        continue
+                    arg = match.group(1)
+                    canonical, _audio = synthetic.get(arg, (arg, None))
+                    cls.registered.add(canonical)
+
+    def test_cursor_only_events_are_not_registered_with_claude_code(self) -> None:
+        """The 37-vs-28 bug in one assertion.
+
+        These nine events exist only in Cursor's hook surface. Claude Code has
+        no equivalent, so registering — or advertising — them here is wrong.
+        """
+        self.assertEqual(
+            self.CURSOR_ONLY & self.registered,
+            set(),
+            "Cursor-only events must not appear in the Claude Code template",
+        )
+
+    def test_registered_events_are_all_canonical(self) -> None:
+        canonical = {h["name"] for h in _hook_catalog()}
+        self.assertTrue(
+            self.registered <= canonical,
+            "template registers events absent from HOOK_CATALOG: "
+            f"{sorted(self.registered - canonical)}",
+        )
+
+    def test_session_start_fork_is_registered(self) -> None:
+        """Claude Code 2.1.213 reports ``fork`` where it used to report
+        ``resume``. Missing this matcher makes forked sessions silent, which is
+        exactly the class of upstream drift nothing else in CI would catch."""
+        template: Dict[str, Any] = json.loads(CC_TEMPLATE.read_text(encoding="utf-8"))
+        matchers = {
+            group.get("matcher")
+            for group in template["hooks"]["SessionStart"]
+        }
+        self.assertIn("fork", matchers)
+
+    def test_stop_failure_registers_only_real_upstream_types(self) -> None:
+        """Every StopFailure matcher must be a real Claude Code ``error_type``.
+
+        ``other`` was never one — it was echook's own invention for a collapsed
+        handler, so it could never fire.
+        """
+        upstream = {
+            "authentication_failed", "oauth_org_not_allowed", "account_on_hold",
+            "billing_error", "rate_limit", "overloaded", "invalid_request",
+            "model_not_found", "server_error", "unknown", "max_output_tokens",
+        }
+        template: Dict[str, Any] = json.loads(CC_TEMPLATE.read_text(encoding="utf-8"))
+        registered = set()
+        for group in template["hooks"]["StopFailure"]:
+            registered.update(str(group.get("matcher", "")).split("|"))
+        self.assertEqual(
+            registered - upstream,
+            set(),
+            "StopFailure registers matcher values Claude Code never emits",
+        )
+
+
+class TestAudioUniqueness(unittest.TestCase):
+    """No two events or variants may share a sound.
+
+    The point of 39 events and 44 independently switchable variants is that you
+    can tell them apart by ear. Before v6.5.1 eleven files were shared by up to
+    seven slots each — `notification-urgent.mp3` covered `notification` plus six
+    variants, so four different rate-limit and auth failures were audibly the
+    same event. Every slot now owns exactly one file.
+
+    This also guards the cheap regression: adding an event by copying a
+    neighbouring line and forgetting to change the audio filename.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.runner = _load_hook_runner()
+        cls.catalog = _hook_catalog()
+        cls.users: Dict[str, List[str]] = {}
+        for entry in cls.catalog:
+            cls.users.setdefault(entry["audio"], []).append(f"event:{entry['name']}")
+        for variant, (_parent, override) in cls.runner.SYNTHETIC_EVENT_MAP.items():
+            if override:
+                cls.users.setdefault(override, []).append(f"variant:{variant}")
+
+    def test_every_variant_has_its_own_audio_override(self) -> None:
+        """A variant with no override inherits its parent's sound, which makes
+        its independent toggle audibly indistinguishable from the parent."""
+        inheriting = [
+            v for v, (_p, o) in self.runner.SYNTHETIC_EVENT_MAP.items() if not o
+        ]
+        self.assertEqual(inheriting, [], "variants without their own sound")
+
+    def test_no_audio_file_is_shared(self) -> None:
+        shared = {f: u for f, u in self.users.items() if len(u) > 1}
+        self.assertEqual(shared, {}, f"audio shared by multiple slots: {shared}")
+
+    def test_every_referenced_file_exists_in_both_themes(self) -> None:
+        for filename in self.users:
+            self.assertTrue(
+                (AUDIO_DIR / "default" / filename).exists(),
+                f"missing audio/default/{filename}",
+            )
+            self.assertTrue(
+                (AUDIO_DIR / "custom" / f"chime-{filename}").exists(),
+                f"missing audio/custom/chime-{filename}",
+            )
+
+    def test_manifest_can_regenerate_every_referenced_file(self) -> None:
+        """`scripts/generate-audio.py` only knows what is in the manifest.
+        A file it cannot regenerate is one a voice or theme refresh would
+        silently leave behind at the old voice."""
+        manifest = json.loads(
+            (REPO / "config" / "audio_manifest.json").read_text(encoding="utf-8")
+        )
+        known = {entry["filename"] for entry in manifest["files"]}
+        missing = sorted(
+            f for f in self.users
+            if f not in known or f"chime-{f}" not in known
+        )
+        self.assertEqual(missing, [], "files absent from audio_manifest.json")
+
+    def test_manifest_entries_are_individually_distinct(self) -> None:
+        """Two entries with the same prompt produce the same audio, which
+        defeats the whole exercise even though the filenames differ."""
+        manifest = json.loads(
+            (REPO / "config" / "audio_manifest.json").read_text(encoding="utf-8")
+        )
+        for kind in ("voice", "sound_effect"):
+            texts = [e["text"] for e in manifest["files"] if e["type"] == kind]
+            duplicates = {t for t in texts if texts.count(t) > 1}
+            self.assertEqual(duplicates, set(), f"duplicate {kind} prompts")

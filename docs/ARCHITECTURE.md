@@ -69,8 +69,8 @@ Matcher routing happens in the registration template rather than in Python branc
 ```
 hooks.json  "matcher": "idle_prompt"
   → command arg               notification_idle_prompt
-  → SYNTHETIC_EVENT_MAP[…]    ("notification", "notification-info.mp3")
-  → audio/{default,custom}/   notification-info.mp3 / chime-notification-info.mp3
+  → SYNTHETIC_EVENT_MAP[…]    ("notification", "notif-idle-prompt.mp3")
+  → audio/{default,custom}/   notif-idle-prompt.mp3 / chime-notif-idle-prompt.mp3
 ```
 
 Nothing validates the chain at runtime. `_resolve_synthetic_event` returns an unknown arg unchanged, `run_hook` receives a hook type nothing recognises, and the event becomes a permanent no-op — no crash, no user-visible log. Two real defects of exactly this shape survived undetected until v6.4: four `session_end_*` variants that were defined but never registered, and four `Notification` matchers that were never registered at all, so those notification types produced no sound whatsoever.
@@ -225,7 +225,7 @@ plugins/audio-hooks/
       { "matcher": "billing_error|invalid_request|server_error|max_output_tokens|unknown",
         "hooks": [...stop_failure_other] }
     ]
-    // ... and so on for all 25 events
+    // ... and so on for all 28 Claude Code events
   }
 }
 ```
@@ -243,7 +243,7 @@ Native matcher routing happens at the `settings.json` layer (Claude Code's match
 Two-line bottom bar registered in `~/.claude/settings.json` via `audio-hooks statusline install`. Reads stdin JSON Claude Code provides (model name, `effort.level`, Claude Code `version`, session_id, `cwd` / `workspace.current_dir`, workspace.git_worktree, `rate_limits.{five_hour,seven_day}`, `context_window`, `cost`) and emits two lines of plain text with ANSI colors:
 
 ```text
-[Opus 4.8 (1M context)] | 🧠 high | ⚡ CC v2.1.193 | 📁 D:\…\claude-code-audio-hooks | 🔊 echook v6.2.0 | 6/39 Sounds | Theme: Voice
+[Opus 4.8 (1M context)] | 🧠 high | ⚡ CC v2.1.193 | 📁 D:\…\claude-code-audio-hooks | 🔊 echook v6.4.1 | 6/37 Sounds | Theme: Voice
 [MUTED 23m]  🌿 feat/audio-v5  ████░░░░ API Quota: 78% · resets 2pm  ███████░ Weekly: 82% · resets Jul 4 9pm  █████░░░ Context: 65% (130K/200K) ⚠️ /compact  💲 $0.42 +156/-23
 ```
 
@@ -255,7 +255,7 @@ The API Quota bar uses thresholds GREEN <70%, YELLOW 70-89%, RED ≥90%. The Con
 
 Users can customise which segments appear via `statusline_settings.visible_segments` (whitelist) or `statusline_settings.hidden_segments` (blacklist, applied when the whitelist is empty). **29 segments available** (v6.3.0) — Line 1: `model`, `session_name`, `agent`, `effort`, `thinking`, `vim`, `output_style`, `cc_version`, `cwd`, `repo`, `version`, `sounds`, `webhook`, `theme`; Line 2: `snooze`, `branch`, `git_dirty`, `worktree`, `pr`, `added_dirs`, `api_quota`, `weekly_quota`, `context`, `tokens`, `exceeds_200k`, `cost`, `duration`, `api_time`, `burn_rate`. The full catalog (each segment's source field + conditional flag) lives in `STATUSLINE_SEGMENTS` (`bin/audio-hooks.py`), exposed via `audio-hooks statusline segments`. `effort`, `cc_version`, `weekly_quota`, and `cost` mirror the Claude Code startup banner so that information stays visible after the banner scrolls off; most richer segments self-omit when Claude Code doesn't supply the underlying field (e.g. `weekly_quota`/`api_quota` only for Claude.ai subscribers, `pr` only inside a PR, `vim` only in vim mode, `output_style` only when not `default`). `git_dirty` is the one segment that shells out — `git status --porcelain`, cached per-cwd for `CACHE_TTL_SEC` via `_git_dirty()` (non-repos cache `-1` so they don't re-shell); everything else comes from the stdin JSON. The subscription **plan name** is *not* exposed to status line scripts, so it is intentionally not rendered. The `cwd` segment renders the current working directory as an abbreviated path (home → `~`, long paths shortened to `<root>…<last folder>` via `_abbrev_path()`). Empty `visible_segments` (default) shows all; `hidden_segments` lets a user drop a few. Example: `audio-hooks set statusline_settings.visible_segments '["context","api_quota"]'` shows only the two progress bars.
 
-**Codex status line curation (v6.3.0).** Codex's status line is *not* command-backed — it renders only fixed lists of built-in item IDs under `[tui].status_line` and `[tui].terminal_title` in `config.toml` (command rendering is open feature request openai/codex#20140). echook cannot render a custom Codex status line, only **curate** those fixed lists so they stop truncating with an ellipsis. `audio-hooks statusline codex {show,preview,apply}` (presets `minimal`/`balanced`/`full`, `--items`, `--target status_line|terminal_title|both`) does a **surgical** text edit via `_codex_apply_tui_array(text, key, items)`: it locates the `[tui]` table and replaces only the targeted array (matching the exact key so `status_line` is not confused with `status_line_use_colors`; handling multi-line arrays by bracket balance; inserting the key or a `[tui]` header when absent), preserving every other table, comment, and the file's formatting. `apply` backs up `config.toml` first (`_backup_file()`) and, when `tomllib` is available (3.11+), validates the result parses and round-trips before writing. Regression-guarded by `tests/test_codex_statusline.py`.
+**Codex status line curation (v6.3.0).** Codex's status line is *not* command-backed — it renders only fixed lists of built-in item IDs under `[tui].status_line` and `[tui].terminal_title` in `config.toml` (command rendering is open feature request openai/codex#17827). echook cannot render a custom Codex status line, only **curate** those fixed lists so they stop truncating with an ellipsis. `audio-hooks statusline codex {show,preview,apply}` (presets `minimal`/`balanced`/`full`, `--items`, `--target status_line|terminal_title|both`) does a **surgical** text edit via `_codex_apply_tui_array(text, key, items)`: it locates the `[tui]` table and replaces only the targeted array (matching the exact key so `status_line` is not confused with `status_line_use_colors`; handling multi-line arrays by bracket balance; inserting the key or a `[tui]` header when absent), preserving every other table, comment, and the file's formatting. `apply` backs up `config.toml` first (`_backup_file()`) and, when `tomllib` is available (3.11+), validates the result parses and round-trips before writing. Regression-guarded by `tests/test_codex_statusline.py`.
 
 **Width-aware reflow (v6.1.0+).** Each line is packed into as many physical rows as the terminal width needs, wrapping only at segment boundaries so no segment is ever split or truncated by Claude Code (the `Webho…` overflow). Width is resolved by `_terminal_width()`: explicit `statusline_settings.max_width` override → the `COLUMNS` env var Claude Code exports before each run (v2.1.153+; read via `shutil.get_terminal_size`, which can't probe a piped stdout directly) → fallback 80, minus `WIDTH_SAFETY_MARGIN` (4 columns). The margin matters because `COLUMNS` is the *full* terminal width but the *usable* width is smaller — the registered `padding` indents the line and terminals reserve the rightmost cell — so packing against the raw `COLUMNS` overfills the last row by a few columns and Claude Code truncates it. `statusline install` registers `padding: 0` (was `1`) to maximise usable width; the margin covers any residual padding plus the edge. Users on a narrower-than-reported terminal can pin the exact width via `max_width`. Segment widths are measured by `_vwidth()`, which strips ANSI escapes (zero width), counts emoji/CJK as two cells and box-drawing bar glyphs (█/░) as one, and ignores variation selectors / combining marks — then `_pack_lines()` greedily distributes segments. Regression-guarded by `tests/test_statusline.py::TestReflow` / `TestVwidth` / `TestPackLines`.
 
@@ -514,18 +514,86 @@ flowchart LR
 
 ## Adding a new hook event (when Claude Code adds one)
 
-1. Add the canonical name + audio filename to `DEFAULT_AUDIO_FILES` and `CUSTOM_AUDIO_FILES` in `hook_runner.py`.
-2. Add a branch in `get_notification_context(hook_type, ...)` for the notification text. For a `Notification` subtype, add an entry to `NOTIFICATION_TYPE_LABELS` instead — that branch is data now.
-3. Add the entry to `HOOK_CATALOG` in `bin/audio-hooks.py`.
-4. Add an entry to `enabled_hooks` in `config/default_preferences.json` (with default on/off).
-5. Add the event handler to `plugins/audio-hooks/hooks/hooks.json` (with matchers if applicable). **Hand-edited — `build-plugin.sh` does not sync this file and there is no repo-root copy.**
-6. If matcher-scoped, add synthetic event entries to `SYNTHETIC_EVENT_MAP` in `hook_runner.py`. A variant of an **on-by-default** parent also needs `SYNTHETIC_VARIANT_DEFAULTS[<variant>] = False`, or it starts firing on every existing install the moment it ships.
-7. Add audio entries to `config/audio_manifest.json` and run `python scripts/generate-audio.py`. **Matcher subtypes normally skip this** — reuse an existing filename via the `SYNTHETIC_EVENT_MAP` audio override, as every `notification_*` variant does.
-8. Run `bash scripts/build-plugin.sh`.
-9. Test: `python bin/audio-hooks.py test <new_hook>`, then `python -m unittest tests.test_plugin_hooks_contract` — the contract tests fail loudly if the registration, the synthetic map, the audio files and the catalogue have drifted apart.
-10. Update `CLAUDE.md` and `README.md` hook tables. Bump version, update CHANGELOG.
+The registration chain is held together by naming convention alone, and an
+unresolvable arg becomes a **permanent silent no-op** — no crash, no log line
+anyone reads. Work through every step; the contract tests in step 12 are what
+make a break loud.
 
-**Verify the event's real semantics before relying on its name.** v6.3.4 was an emergency rollback because `WorktreeCreate` turned out to be a *provider* hook that hijacked worktree creation. Register a capture shim against the event, exercise it for real, and record what you observed in the CHANGELOG — v6.4.0's `### Note` is the worked example, including how a catch-all matcher distinguishes "this type never fires" from "this matcher string is unrecognised".
+**Runtime — `hooks/hook_runner.py`**
+
+1. `DEFAULT_AUDIO_FILES` — canonical name → `<file>.mp3`.
+2. `CUSTOM_AUDIO_FILES` — canonical name → `chime-<file>.mp3`. Two separate
+   tables; the custom path is *derived* by prefix elsewhere, so both need the
+   entry.
+3. `get_notification_context()` — a branch for the notification text. Omitting
+   it does not crash: the name degrades to `hook_type.replace("_"," ").title()`,
+   which is why a missing branch is easy to ship unnoticed. For a `Notification`
+   subtype add to `NOTIFICATION_TYPE_LABELS` instead — that path is data, and
+   the contract test checks it in **both** directions.
+4. `_CURSOR_UNSUPPORTED` / `_CODEX_UNSUPPORTED` — add the name if that editor
+   has no equivalent, so the runner no-ops with a `skipped_no_*_equivalent`
+   debug event rather than pretending to fire.
+5. If matcher-scoped: `SYNTHETIC_EVENT_MAP`. A variant of an **on-by-default**
+   parent also needs `SYNTHETIC_VARIANT_DEFAULTS[<variant>] = False`, or merely
+   registering the matcher starts making noise on every existing install.
+
+**CLI — `bin/audio-hooks.py`**
+
+6. `HOOK_CATALOG` — drives `total_hook_count`, `test all`, `diagnose`'s audio
+   checks, and `hooks enable/disable` validation.
+7. `_MOCK_STDIN` (optional) — synthetic stdin for `audio-hooks test <event>`.
+   Without it the test falls back to a bare `{hook_event_name, session_id}`.
+
+**Config — `config/`**
+
+8. `default_preferences.json` → `enabled_hooks`. Must match
+   `HOOK_CATALOG[].default` exactly or the contract test fails. **Canonical
+   events only** — variant keys are forbidden here and are derived instead.
+9. `default_preferences.json` → `tts_settings.messages` — the spoken string.
+10. `_defaults_baseline.json` — the pinned snapshot. A *new* key is fine; a
+    *flipped* existing key fails `test_defaults_stability.py`.
+11. `audio_manifest.json` — two entries (default + custom theme), then
+    `ELEVENLABS_API_KEY=... python scripts/generate-audio.py --only <files>`.
+    **Matcher variants need this too.** Since v6.5.0 every event *and* every
+    variant owns a distinct sound: a variant that reuses its parent's file is
+    audibly indistinguishable from it, which makes its independent toggle
+    pointless. `TestAudioUniqueness` fails if any two slots share a file, if a
+    variant has no override, or if two manifest prompts are identical (same
+    prompt, same audio, different filename).
+
+**Templates — one per editor**
+
+12. `plugins/audio-hooks/hooks/hooks.json` (Claude Code). **Hand-edited:
+    `build-plugin.sh` does not sync it and there is no repo-root copy**, so it
+    looks generated but is not.
+13. `cursor-hooks/hooks.json` — only if Cursor has the event.
+14. `codex-hooks/hooks.json` — only if Codex has it; every command **must**
+    carry `--invoker codex`.
+15. `codex-hooks/plugin-hooks.json` — the Codex *plugin* path, separate from
+    the native one, using `${PLUGIN_ROOT}`.
+
+**Legacy script-install path — `scripts/`**
+
+16. `install-complete.sh` → `all_hook_types` (+ `hooks_with_matcher` /
+    `smart_matchers` if applicable).
+17. `uninstall.sh` → **both** `HOOK_EVENTS` (bash) and `hook_events` (the
+    embedded Python). Missing it here is the worst failure mode: the
+    registration outlives the uninstall, pointing at a deleted script.
+
+**Finish**
+
+18. `bash scripts/build-plugin.sh` — syncs everything except step 12.
+19. `python bin/audio-hooks.py test <new_hook>`.
+20. `python -m unittest discover tests` — `test_plugin_hooks_contract.py` and
+    `test_legacy_scripts_contract.py` fail loudly if the registration, the
+    synthetic map, the audio files, the catalogue and the scripts have drifted.
+21. Docs: the counts are **not** touched by `bump-version.sh` and are all
+    manual — `README.md`, `CLAUDE.md`/`AGENTS.md`, `llms.txt`,
+    `docs/CLI_REFERENCE.md`, `docs/INSTALLATION_GUIDE.md`, `SKILL.md`, both
+    `plugin.json`s and `marketplace.json`.
+22. Bump the version and write the CHANGELOG entry.
+
+**Verify the event's real semantics before relying on its name.** v6.3.4 was an emergency rollback because `WorktreeCreate` turned out to be a *provider* hook that hijacked worktree creation. Register a capture shim against the event, exercise it for real, and record what you observed in `docs/EVENT_BEHAVIOR_NOTES.md` and the CHANGELOG — v6.4.0's `### Note` is the worked example, including how a catch-all matcher distinguishes "this type never fires" from "this matcher string is unrecognised".
 
 ## Adding a new audio file
 

@@ -94,7 +94,7 @@ sequenceDiagram
     You->>CC: Enable the audio-hooks file_changed hook and<br/>configure it to watch .env and .envrc.
     CC-->>You: file_changed enabled, watching [.env, .envrc].
     You->>CC: Test all my audio-hooks hooks and tell me<br/>if any failed.
-    CC-->>You: audio-hooks test all — 39/39 passed.
+    CC-->>You: audio-hooks test all — 37/37 passed.
     You->>CC: What's the current state of audio-hooks?
     CC-->>You: audio-hooks status — theme: default,<br/>18 hooks enabled, 0 errors.
     You->>CC: Show me the last 20 errors and clear the log.

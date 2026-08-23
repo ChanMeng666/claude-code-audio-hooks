@@ -7,13 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Historical entries below this point use the project's previous name. They are preserved verbatim as a record of what was shipped at the time. The rename to **echook** landed in 5.2.1 — see that entry for the full mitigation guidance.
 
-## [Unreleased]
+## [6.5.0] - 2026-08-23
+
+Capability release, and the other half of the upstream-tracking work v6.4.1 started. Two new notification surfaces, two new events, eight missing matchers, and a filter that finally expresses "only tell me about the slow ones".
+
+Every event and field below was verified against the Claude Code 2.1.239 binary before being registered — the rule `docs/EVENT_BEHAVIOR_NOTES.md` exists to enforce. Two plan items changed shape as a direct result of that checking; see **Note** at the end.
+
+### Added
+
+- **`terminalSequence` — desktop notifications with no dependencies and no terminal.** Claude Code 2.1.141+ reads a `terminalSequence` field from a hook's stdout JSON and writes the escape itself, producing a desktop toast, window title or bell on any platform — and it works even though a hook has no controlling terminal, which is exactly the away-from-screen case echook exists for. Styles: `osc9` (default, widest support), `osc777`, `title`, `bell`. Off by default; Claude Code only.
+
+  This is the only thing in the runner that writes to stdout, and stdout is what caused the v6.3.4 outage, so the containment is the feature:
+  - a hard event allowlist, with a matching *forbidden* set for events that consume stdout JSON to change Claude Code's behaviour — `MessageDisplay.displayContent` **replaces Claude's visible output**, and `Elicitation`/`ElicitationResult`.action answers an MCP prompt with accept/decline/cancel **on the user's behalf**;
+  - only ever `{"terminalSequence": ...}` — never `hookSpecificOutput`, `continue`, or `decision`;
+  - notification text is sanitised, because a BEL or ESC inside it would close our sequence early and hand the rest to the terminal as a fresh command;
+  - `tests/test_terminal_sequence.py` (17 tests) pins all of it, including that Cursor and Codex never emit and that unknown events default to deny.
+
+- **`subagentStatusLine` — echook claims Claude Code's second status-line surface.** One rendered row per task in the agent panel: status icon, model, reasoning effort, context used against the window, elapsed time. `audio-hooks statusline subagent {show,install,uninstall}`.
+
+  It is a genuinely different contract from the main status line, which is why it gets its own renderer: stdin carries `{columns, tasks: [...]}` and stdout must be **NDJSON** — one `{"id", "content"}` per line, keyed by task id, within a 5 s timeout. A mismatched id is dropped silently, so guessing here produces silence rather than an error.
+
+- **Two new Claude Code events**, both opt-in:
+  - **`worktree_remove`** — restored. v6.3.4 rolled back `worktree_create` *and* `worktree_remove` together, but only `WorktreeCreate` is a provider hook: it is the sole hook carrying a required `hookSpecificOutput.worktreePath`, and the only one documented as *"Command hooks print the path on stdout instead"*. `WorktreeRemove` appears nowhere in the 20-member output union and its stdout is discarded. That rollback cut twice as much as it needed to.
+  - **`directory_added`** (Claude Code 2.1.219) — `/add-dir` or the SDK's `register_repo_root` bringing another root into the session. Two matcher variants (`slash_command`, `register_repo_root`); the natural sibling of `cwd_changed`.
+
+- **The eight remaining `Notification` matchers.** `elicitation_url_dialog`, `worker_permission_prompt`, `push_notification`, `computer_use_enter`, `computer_use_exit`, and `quota_auto_resume_fired` / `_stale` / `_disabled`. They previously fell through to the catch-all and shared one sound with no per-variant toggle. Two are squarely on-mission: `worker_permission_prompt` (a subagent blocked on approval) and the `quota_auto_resume_*` trio (a session that resumed itself after a rate-limit window reset). All ship off, as every variant of an on-by-default parent must.
+
+- **`filters.<hook>.min_duration_ms`.** `PostToolUse` and `PostToolUseFailure` carry `duration_ms` — *"Tool execution time in milliseconds. Excludes permission-prompt and hook time"* — so "only chime for tools that took over 30 s" is now expressible. Debounce cannot do this: it suppresses by wall-clock window and cannot distinguish a burst of fast tools from one long build. Fails open, so an editor that does not report `duration_ms` is never silenced by it.
+
+- **Codex `SessionEnd`, version-gated.** Registered by `install --codex` **only** when the installed Codex is >= 0.145.0 (see Note).
+- **Codex status line grows.** `full` gains `thread-title` (the preset had no session identity at all), `fast-mode`, `context-used`, and the two Enterprise items added in 0.148 (`thread-credits`, `estimated-thread-cost`; Codex simply does not draw an item with no value). `--items` now validates against the full known ID set instead of writing an unrecognised ID that would silently never render.
+- **Codex hooks are now `async: true`.** echook's hooks are pure side effects — they play a sound, speak, or POST — which is precisely the workload Codex's async hooks exist for.
+- **Every event and variant now has its own sound — 83 distinct files per theme, up from 37.** Eleven files were previously shared by up to seven slots each, so four different `stop_failure` types and every `session_start` variant were audibly identical. `config/audio_manifest.json` grew from 34 to 168 entries so every shipped sound is regenerable, and a contract test now fails if any two slots share a file.
+
+### Fixed
+
+- **`_SEGMENT_ALIASES["rate_limit"]` pointed at `"rate-limit"`, which is not a segment name**, so the alias silently resolved to nothing. Now maps to `api_quota`, with `rate_limits` added alongside.
+- **`STATUSLINE_SEGMENTS` and `LINE1/LINE2_SEGMENTS` now have the lock-step test** the code comment has demanded since v6.3.0. Drift between them is invisible otherwise: a segment in the catalogue but not the renderer is advertised, configurable, and never appears — and the status line swallows every error by design.
+
+### Changed
+
+- 37 → **39 canonical events**, 34 → **44 matcher variants**. Claude Code registers 30 of the 39; Codex 10 (11 on >= 0.145.0); Cursor 18 distinct.
+- `session_end` removed from the runner's Codex-unsupported set — on older Codex it is simply never registered, so it needs no runtime guard.
+- `scripts/build-plugin.sh` syncs the new subagent renderer.
+
+### Note
+
+**Two plan items changed after checking them against the real thing.**
+
+`Codex SessionEnd` was going to be added to the template outright. The binary shows the hooks event map is a serde struct that rejects unknown keys — *"unknown field"* / *"unexpected map key"* sit directly beside the event-name table, next to *"failed to parse hooks config"* — and a `hooks.json` that fails to parse takes **every** hook down with it, not just the unknown one. Codex 0.143 (six minor versions behind current) has no `SessionEnd`. Shipping it in the template would therefore have silenced echook completely for anyone below 0.145.0. It is injected at install time behind a version check instead. This could not be confirmed by running Codex locally — the sandboxed `CODEX_HOME` has no credentials, so config loading never reaches hook parsing — so the version gate is the safe answer either way.
+
+`cursor-agent`'s custom status line was scoped for this release and is **not** implemented. The Cursor *IDE* turned out to have no third-party-writable status bar at all — every `statusLine` occurrence in the installed build is an internal agent-transcript row kind, and the same bundle does contain the hook event names, so that is a real absence rather than a failed search. The CLI's `statusLine` does exist upstream and is modelled on Claude Code's convention, which would make the existing renderer largely reusable, but `cursor-agent` could not be installed on the machine this was investigated from, so its settings location and stdin schema are unconfirmed. Findings and the exact steps to finish it are recorded in `docs/STATUS_LINE.md`.
+
+`commandWindows` was going to be adopted to kill the Windows path-escaping class of bug. On inspection it earns nothing here: `install --codex` generates `hooks.json` per machine and already substitutes a correctly escaped native path, so a second Windows-specific command would be one more surface to keep in sync for no benefit. Documented in the template rather than added.
+
+**Audio: every event and variant now has its own sound.** Until this release eleven files were shared by up to seven slots each — `notification-urgent.mp3` covered `notification` plus six `stop_failure` and `quota_auto_resume` variants, `tool-failed.mp3` covered seven, and every `session_start`/`session_end`/`precompact`/`setup` variant simply inherited its parent. Independently switchable variants that sound identical are not really distinguishable, which defeats the point of having them.
+
+All **83 slots (39 canonical events + 44 matcher variants) now map to 83 distinct files**, generated in both themes — 168 files, verified byte-distinct within each theme. `precompact` also moved off the misleading `notification-info.mp3` onto `pre-compact.mp3`; that file remains only as `get_audio_file()`'s last-resort fallback.
+
+`config/audio_manifest.json` is backfilled from 34 to **168 entries**, so every shipped sound is regenerable — previously the original ~20 sounds predated the manifest and a voice or theme refresh would have silently left them at the old voice. `tests/test_plugin_hooks_contract.py::TestAudioUniqueness` pins all of it: no shared files, no variant without its own override, every referenced file present in both themes and regenerable, and no two manifest prompts identical.
+
+**`agent_completed` / `agent_needs_input` remain unverified.** Still registered for completeness, still off, still not presented as a working "task finished" cue. `idle_prompt` is that signal.
+
+## [6.4.1] - 2026-08-23
+
+> Released as part of **6.5.0** — these fixes were completed first and are kept as their own entry because they are a distinct body of work (correcting drift against upstream), not new capability. There is no separate `v6.4.1` tag.
+
+Upstream-drift release. Claude Code moved and echook did not: one matcher value silently stopped firing, five advertised toggles turned out to do nothing, and the manifest overstated what Claude Code actually supports. No new events, no new audio files — every change here fixes something that was already broken.
+
+Findings recorded in `docs/EVENT_BEHAVIOR_NOTES.md`, extracted from the Claude Code 2.1.239 binary rather than from documentation.
+
+### Fixed
+
+- **Forked sessions were completely silent.** Claude Code 2.1.213 changed `SessionStart` to report `source: "fork"` where it previously reported `"resume"`. The source union is closed — `Or(["startup","resume","clear","compact","fork"])` — and echook registered only the first four, so every forked session matched nothing and made no sound. Nothing failed and nothing logged; the handler was simply never invoked. Registered as `session_start_fork`, inheriting its parent's off-by-default state.
+- **Five `stop_failure` variant toggles had no effect.** `billing_error`, `invalid_request`, `server_error`, `max_output_tokens` and `unknown` were collapsed onto a single handler registered as `stop_failure_other`, so `is_hook_enabled` always received `stop_failure_other` as the variant and `enabled_hooks.stop_failure_billing_error` did nothing — while `hooks list --variants` and `manifest` advertised all five as independently switchable. Each of Claude Code's 11 real `error_type` values now gets its own handler.
+- **Removed `stop_failure_other`, which could never fire.** `other` is not a Claude Code `error_type`; it was echook's own name for the collapsed handler. The four genuinely missing types are now registered: `oauth_org_not_allowed`, `account_on_hold`, `overloaded`, `model_not_found`. Audio follows Claude Code's own bucketing — auth types share `notification-urgent.mp3`, the rest `tool-failed.mp3`.
+- **`manifest.supported_editors["claude-code"].events` claimed 37 events; the real number is 28.** It was derived from `HOOK_CATALOG`, which spans all three editors, so it counted the nine Cursor-only events (`shell_before`/`shell_after`, `mcp_before`/`mcp_after`, `file_read`, `agent_response`, `agent_thinking`, `workspace_open`, `tab_file_edit`) that the Claude Code template never registers. It is now derived from the template itself. `CLAUDE.md` tells operators the manifest is the live source of truth, so this one misled agents rather than humans.
+- **The legacy script install registered 20 of 28 events**, missing all four v5.0 events (`PermissionDenied`, `CwdChanged`, `FileChanged`, `TaskCreated`) and all four v6.2 ones (`Setup`, `UserPromptExpansion`, `PostToolBatch`, `MessageDisplay`). A `--scripts` install was quietly less capable than a plugin install.
+- **`uninstall.sh` left 19 orphaned hook registrations behind.** It knew only 9 events, in two separate lists that had drifted apart from each other, so uninstalling left `~/.claude/settings.json` pointing at scripts that no longer existed. This was the worse of the two script bugs because it outlives the uninstall.
+
+### Added
+
+- **`diagnose` now reports two silent-failure modes it previously could not see.**
+  - `NATIVE_NOTIFICATIONS_ACTIVE` — Claude Code's own `preferredNotifChannel` signals the same events echook does, so anything other than `notifications_disabled` produces a double bell or duplicate toast. Reported as a warning with both ways to resolve it, since wanting both is legitimate.
+  - `CODEX_MANAGED_HOOKS_ONLY` — an enterprise `requirements.toml` with `allow_managed_hooks_only` makes Codex ignore `$CODEX_HOME/hooks.json` entirely. `install --codex` reports success and echook is then permanently mute, with no error anywhere.
+- **`tests/test_legacy_scripts_contract.py`** — pins both scripts' event lists to the plugin template, including that `uninstall.sh`'s two internal lists agree with each other. Neither script had any test coverage before.
+- **Manifest and template contract tests** (`test_plugin_hooks_contract.py`) — assert Cursor-only events never appear in the Claude Code template, that `SessionStart` registers `fork`, and that every `StopFailure` matcher is a real upstream `error_type`. 292 → 301 tests.
+
+### Changed
+
+- `INTENTIONALLY_UNREGISTERED` in the contract test is now empty; it kept the five collapsed `stop_failure` variants exempt from the "every variant must be reachable" assertion, which is precisely what let the broken toggles pass CI.
+- 30 → **34 matcher variants** (`stop_failure` 8 → 11, `session_start` 4 → 5). Canonical event count unchanged at 37.
 
 ### Docs
 
+- **`docs/ARCHITECTURE.md`'s "Adding a new hook event" checklist was incomplete** — 10 steps for a surface that spans 22 across 14 files. It omitted `CUSTOM_AUDIO_FILES`, `tts_settings.messages`, `_defaults_baseline.json`, `_CURSOR_UNSUPPORTED`/`_CODEX_UNSUPPORTED`, `_MOCK_STDIN` and both legacy scripts. An incomplete checklist is how these gaps arrive.
+- **Codex documentation moved.** `developers.openai.com/codex/hooks` now 308-redirects to `learn.chatgpt.com/docs/hooks`; updated in both Codex templates and the manifest `doc_url`.
+- **Codex status-line tracker corrected.** `openai/codex#20140` was closed as a duplicate; the live issue is **#17827**, still open. The surrounding conclusion — that Codex can only be curated, not rendered — is unchanged and still correct.
+- **`CLAUDE.md` / `AGENTS.md` silent-bite corrections.** Codex *does* inject `CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA` compat aliases, so Cursor's behaviour must not be generalised to it. Cursor's bridge toggle was renamed to Settings → Rules, Skills, Subagents → "Include third-party Plugins, Skills, and other configs", and it has **no effect on `cursor-agent`**, where bridging is hardcoded — which makes `DUPLICATE_BRIDGE` the only defence on the CLI. The "3.2.16" version claim is softened to "3.2.x" as no source substantiates the exact number.
+- **`docs/EVENT_BEHAVIOR_NOTES.md`** gains the `fork` and `StopFailure` findings, plus three Cursor observations: its `stop` **does** carry `status` and `loop_count`, so the "`stop` cannot mean done" rule is Claude-Code-specific and must not be generalised; Cursor runs all bridged hooks without de-duplicating; and a staff-acknowledged Windows bug where bridged Claude Code hooks are composed as PowerShell but executed with bash.
+- Stale counts corrected: `ARCHITECTURE.md` ("all 25 events", "6/39 Sounds"), `NATURAL_LANGUAGE_CONTROL.md` ("39/39 passed"), `STATUS_LINE.md` (stamped v6.3.3 since before 6.4.0 shipped).
 - **Removed the uniqueness claims from the public narrative.** The README, `llms.txt`, both plugin manifests and `docs/NATURAL_LANGUAGE_CONTROL.md` carried claims that a single search refutes — "AI-operated, not AI-assisted" / "you don't read this, your agent does" (an agent-readable instruction file beside a CLI is the ecosystem default, and competitors in this exact niche ship several), "one slash command at install, then natural language forever" (Claude Code's own `/statusline` takes natural-language instructions and writes the config itself), and "complete hook coverage" (the three editors document 63 events between them; echook maps 37, and Claude Code adds more roughly monthly). They are replaced with claims that stay true when someone checks: the count and its denominator, per-event sound mapping on three editors, and the architectural property that there is no interactive or hand-edit path — which is refutable only from inside this repo. A short **"If you're comparing"** paragraph now names the alternatives directly, including Anthropic's own four-line `afplay` hook, `peon-ping`, `claudio`, `anotifier`, and Cursor's native execution of Claude Code hooks.
 - **Corrected the surfaces still describing v6.2.0.** The README subtitle said `v6.2.0` / 39 hook events and the "What's New" section stopped at v6.2.0, omitting v6.3.4 — the rollback that took the count to **37** and stopped the plugin hijacking Claude Code's `WorktreeCreate` provider hook. Both plugin manifest descriptions said "26 hooks". The feature table said "6 on by default" and marked `subagent_stop`, `permission_denied` and `task_created` as on; `config/default_preferences.json` enables **3** (`notification`, `stop`, `permission_request`), and has since v5.1.5 reverted the v5.1.4 default flip the same day. Ground truth for all of it: `bin/audio-hooks.py` `HOOK_CATALOG` (37 entries) and `audio-hooks manifest`.
 - **Stopped claiming `/reload-plugins` is the only manual step.** Five of the seven install paths need a one-time editor restart, which no agent can perform; the README, `llms.txt` and the Claude Code install row now say so.
+
+### Note
+
+`WorktreeRemove` and `DirectoryAdded` are absent from Claude Code's surface in echook deliberately — they are new *capability*, not fixes, and this release adds none. Evidence gathered for the next release: `WorktreeCreate` is the **only** provider hook (the sole hook whose command form treats stdout as a return value — *"Command hooks print the path on stdout instead"*), so v6.3.4's rollback of `worktree_remove` alongside it cut more than it needed to.
 
 ## [6.4.0] - 2026-07-20
 

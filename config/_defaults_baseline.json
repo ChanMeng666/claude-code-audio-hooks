@@ -3,91 +3,65 @@
   "_comment": "echook - Default Configuration Template (v5.1.5)",
   "_version": "5.1.5",
   "_description": "This file is the default template for user_preferences.json. Plugin installs auto-copy this to ${CLAUDE_PLUGIN_DATA}/user_preferences.json on first read. AI agents should NOT edit this file directly — use 'audio-hooks set <key> <value>' instead.",
-
   "version": "5.1.5",
-
   "_comment_audio_theme": "Audio theme: 'default' for voice recordings, 'custom' for non-voice chimes. Change this one line to switch all audio.",
   "audio_theme": "default",
-
   "enabled_hooks": {
     "_comment_notification": "Plays when Claude needs authorization or plan confirmation - HIGHLY RECOMMENDED",
     "notification": true,
-
     "_comment_stop": "Plays when Claude finishes responding - RECOMMENDED",
     "stop": true,
-
     "_comment_pretooluse": "Plays before Claude executes a tool (can be noisy) - OPTIONAL",
     "pretooluse": false,
-
     "_comment_posttooluse": "Plays after each tool execution (very noisy) - OPTIONAL",
     "posttooluse": false,
-
     "_comment_userpromptsubmit": "Plays when you submit a prompt - OPTIONAL",
     "userpromptsubmit": false,
-
     "_comment_subagent_stop": "Plays when subagent tasks complete - RECOMMENDED for heavy users",
     "subagent_stop": false,
-
     "_comment_precompact": "Plays before conversation history compaction - OPTIONAL",
     "precompact": false,
-
     "_comment_session_start": "Plays when Claude Code session starts - OPTIONAL",
     "session_start": false,
-
     "_comment_session_end": "Plays when Claude Code session ends - OPTIONAL",
     "session_end": false,
-
     "_comment_permission_request": "Plays when permission dialog appears ('Allow this bash command?') - HIGHLY RECOMMENDED",
     "permission_request": true,
-
     "_comment_posttoolusefailure": "Plays when a tool execution fails - OPTIONAL",
     "posttoolusefailure": false,
-
     "_comment_subagent_start": "Plays when a background subagent is spawned - OPTIONAL",
     "subagent_start": false,
-
     "_comment_teammate_idle": "Plays when an Agent Teams teammate goes idle - OPTIONAL",
     "teammate_idle": false,
-
     "_comment_task_completed": "Plays when an Agent Teams task is completed - OPTIONAL",
     "task_completed": false,
-
     "_comment_stop_failure": "Plays when API error occurs (rate limit, auth failure, etc.) - OPTIONAL",
     "stop_failure": false,
-
     "_comment_postcompact": "Plays after context compaction completes - OPTIONAL",
     "postcompact": false,
-
     "_comment_config_change": "Plays when configuration files change during session - OPTIONAL",
     "config_change": false,
-
     "_comment_instructions_loaded": "Plays when CLAUDE.md or rules files are loaded - OPTIONAL",
     "instructions_loaded": false,
-
     "_comment_elicitation": "Plays when an MCP server requests user input - RECOMMENDED",
     "elicitation": false,
-
     "_comment_elicitation_result": "Plays after user responds to an MCP elicitation - OPTIONAL",
     "elicitation_result": false,
-
     "_comment_permission_denied": "v5.0: Plays when auto mode classifier denies a tool call - RECOMMENDED",
     "permission_denied": false,
-
     "_comment_cwd_changed": "v5.0: Plays when working directory changes - OPTIONAL (noisy)",
     "cwd_changed": false,
-
     "_comment_file_changed": "v5.0: Plays when a watched file changes on disk - OPTIONAL (configure file_changed.watch)",
     "file_changed": false,
-
     "_comment_task_created": "v5.0: Plays when a task is created via TaskCreate - RECOMMENDED",
-    "task_created": false
+    "task_created": false,
+    "directory_added": false,
+    "worktree_remove": false
   },
-
   "playback_settings": {
     "_comment_debounce": "Minimum milliseconds between same notification type (prevents spam)",
     "debounce_ms": 500
   },
-
   "notification_settings": {
     "_comment": "Desktop notification mode: audio_only, notification_only, audio_and_notification, disabled",
     "mode": "audio_and_notification",
@@ -97,36 +71,43 @@
     "_comment_per_hook": "Per-hook mode overrides. Omit a hook to use the global mode above.",
     "per_hook": {}
   },
-
   "filters": {
     "_comment": "Per-hook regex filters on stdin JSON fields. Suffix '_exclude' inverts. Example: posttoolusefailure: {\"tool_name\": \"Bash|Write\"}"
   },
-
   "webhook_settings": {
     "_comment": "Send hook events to external services. Formats: slack, discord, teams, ntfy, raw",
     "enabled": false,
     "url": "",
     "format": "raw",
-    "hook_types": ["stop", "notification", "permission_request", "posttoolusefailure", "stop_failure"],
+    "hook_types": [
+      "stop",
+      "notification",
+      "permission_request",
+      "posttoolusefailure",
+      "stop_failure"
+    ],
     "headers": {},
     "_comment_include_user_email": "v5.1.4: When true, include the Cursor IDE user_email field in raw webhook payloads. Default false for privacy — raw webhook URLs may be third-party services.",
     "include_user_email": false
   },
-
   "rate_limit_alerts": {
     "_comment": "v5.0: Play a one-shot warning when stdin rate_limits cross thresholds. Marker-debounced per (window, threshold, resets_at).",
     "enabled": true,
-    "five_hour_thresholds": [80, 95],
-    "seven_day_thresholds": [80, 95],
+    "five_hour_thresholds": [
+      80,
+      95
+    ],
+    "seven_day_thresholds": [
+      80,
+      95
+    ],
     "audio": "notification-urgent.mp3"
   },
-
   "statusline_settings": {
     "_comment": "Controls which segments appear in the Claude Code status line. visible_segments is a whitelist (empty = show all); hidden_segments is a blacklist applied when visible_segments is empty. Run 'audio-hooks statusline segments' for the catalog.",
     "visible_segments": [],
     "hidden_segments": []
   },
-
   "tts_settings": {
     "_comment": "Text-to-speech mode - speaks context-aware messages. Requires: macOS (say), Linux (espeak/spd-say), Windows (SAPI)",
     "enabled": false,
@@ -154,7 +135,6 @@
       "task_created": "Task created"
     }
   },
-
   "_usage_notes": [
     "1. RECOMMENDED CONFIGURATION: Enable 'notification', 'stop', and 'subagent_stop'",
     "2. Enable 'pretooluse' only if you want notifications before EVERY tool execution",

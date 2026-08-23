@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -1012,3 +1013,57 @@ class TestDurationHelper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSegmentCatalogLockStep(unittest.TestCase):
+    """`STATUSLINE_SEGMENTS` and `LINE1/LINE2_SEGMENTS` must agree.
+
+    They are two hand-maintained lists of the same thing: the renderer's
+    `LINE1_SEGMENTS`/`LINE2_SEGMENTS` decide what is drawn, and the CLI's
+    `STATUSLINE_SEGMENTS` is the catalogue `audio-hooks statusline segments`
+    publishes and users configure against. `bin/audio-hooks.py` has carried a
+    "Keep this in lock-step" comment since v6.3.0 with nothing enforcing it.
+
+    Drift here is silent in the worst way: a segment in the catalogue but not
+    the renderer is advertised and never appears, and the status line swallows
+    every error (`sys.exit(0)`), so there is no diagnostic either way.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mod = _load_module()
+        src = (Path(__file__).resolve().parent.parent / "bin" / "audio-hooks.py").read_text(encoding="utf-8")
+        block = re.search(r"STATUSLINE_SEGMENTS\s*[:=].*?\n\]", src, re.DOTALL)
+        assert block, "STATUSLINE_SEGMENTS not found"
+        cls.catalog_names = re.findall(r'"name":\s*"([a-z0-9_]+)"', block.group(0))
+        cls.catalog_lines = {
+            name: int(line)
+            for name, line in re.findall(
+                r'"name":\s*"([a-z0-9_]+)",\s*"line":\s*(\d+)', block.group(0)
+            )
+        }
+
+    def test_catalog_and_renderer_have_the_same_segments(self) -> None:
+        self.assertEqual(
+            set(self.catalog_names),
+            set(self.mod.ALL_SEGMENTS),
+            "statusline segment catalogue has drifted from the renderer",
+        )
+
+    def test_catalog_line_numbers_match_the_renderer(self) -> None:
+        for name, line in self.catalog_lines.items():
+            expected = 1 if name in self.mod.LINE1_SEGMENTS else 2
+            self.assertEqual(
+                line, expected, f"segment {name!r} is on line {line} in the catalogue"
+            )
+
+    def test_catalog_has_no_duplicates(self) -> None:
+        self.assertEqual(len(self.catalog_names), len(set(self.catalog_names)))
+
+    def test_every_alias_resolves_to_a_real_segment(self) -> None:
+        """`_normalise_segments` silently drops an unknown name, so an alias
+        pointing at a non-segment is a no-op the user cannot debug."""
+        for alias, target in self.mod._SEGMENT_ALIASES.items():
+            self.assertIn(
+                target, self.mod.ALL_SEGMENTS, f"alias {alias!r} -> {target!r} is not a segment"
+            )

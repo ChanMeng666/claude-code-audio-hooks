@@ -109,7 +109,17 @@ LINE2_SEGMENTS = ["snooze", "branch", "git_dirty", "worktree", "pr", "added_dirs
 ALL_SEGMENTS = set(LINE1_SEGMENTS) | set(LINE2_SEGMENTS)
 
 # Backwards compatibility: accept old segment names from existing configs
-_SEGMENT_ALIASES = {"hooks": "sounds", "rate_limit": "rate-limit", "ctx": "context"}
+# Friendly names users are likely to type. Every value MUST be a member of
+# ALL_SEGMENTS: _normalise_segments() silently drops anything that is not,
+# so a typo here disables the alias with no diagnostic. Until v6.5
+# "rate_limit" mapped to "rate-limit", which is not a segment name, so the
+# alias never resolved. Guarded by tests/test_statusline.py.
+_SEGMENT_ALIASES = {
+    "hooks": "sounds",
+    "rate_limit": "api_quota",
+    "rate_limits": "api_quota",
+    "ctx": "context",
+}
 
 
 def _read_session_input() -> Dict[str, Any]:

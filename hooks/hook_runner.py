@@ -41,7 +41,7 @@ from invoker import detect_invoker, get_invoker as _get_invoker, strip_invoker_a
 
 # Version used for auto-sync: when the installed copy in ~/.claude/hooks/
 # detects a newer version in the project directory, it self-updates.
-HOOK_RUNNER_VERSION = "6.4.0"
+HOOK_RUNNER_VERSION = "6.5.0"
 
 # =============================================================================
 # STRUCTURED LOGGING (NDJSON)
@@ -585,7 +585,7 @@ DEFAULT_AUDIO_FILES = {
     "posttooluse": "task-progress.mp3",
     "userpromptsubmit": "prompt-received.mp3",
     "subagent_stop": "subagent-complete.mp3",
-    "precompact": "notification-info.mp3",
+    "precompact": "pre-compact.mp3",
     "session_start": "session-start.mp3",
     "session_end": "session-end.mp3",
     "permission_request": "permission-request.mp3",
@@ -603,6 +603,11 @@ DEFAULT_AUDIO_FILES = {
     "permission_denied": "permission-denied.mp3",
     "cwd_changed": "cwd-changed.mp3",
     "file_changed": "file-changed.mp3",
+    # v6.5.0. Both reuse a semantic sibling's sound rather than ship a
+    # dedicated one: generating audio needs an ElevenLabs key, and a sound
+    # that exists beats a catalogue entry pointing at a missing file.
+    "directory_added": "directory-added.mp3",
+    "worktree_remove": "worktree-removed.mp3",
     "task_created": "task-created.mp3",
     # v6.2 hooks — new editor lifecycle events.
     # Claude Code (Setup / UserPromptExpansion / PostToolBatch / MessageDisplay):
@@ -741,49 +746,78 @@ def is_snoozed() -> bool:
 
 SYNTHETIC_EVENT_MAP: Dict[str, Tuple[str, Optional[str]]] = {
     # session_start subtypes (matcher: source)
-    "session_start_startup": ("session_start", None),
-    "session_start_resume":  ("session_start", None),
-    "session_start_clear":   ("session_start", None),
-    "session_start_compact": ("session_start", "post-compact.mp3"),
+    "session_start_startup": ("session_start", "session-startup.mp3"),
+    "session_start_resume":  ("session_start", "session-resumed.mp3"),
+    "session_start_clear":   ("session_start", "session-cleared.mp3"),
+    "session_start_compact": ("session_start", "session-after-compact.mp3"),
+    # v6.4.1 — Claude Code 2.1.213 reports source "fork" (not "resume") when a
+    # session begins as a fork. Without this matcher forked sessions were silent.
+    "session_start_fork":    ("session_start", "session-forked.mp3"),
 
     # session_end subtypes (matcher: source)
-    "session_end_clear":             ("session_end", None),
-    "session_end_resume":            ("session_end", None),
-    "session_end_logout":            ("session_end", None),
-    "session_end_prompt_input_exit": ("session_end", None),
+    "session_end_clear":             ("session_end", "end-clear.mp3"),
+    "session_end_resume":            ("session_end", "end-resume.mp3"),
+    "session_end_logout":            ("session_end", "end-logout.mp3"),
+    "session_end_prompt_input_exit": ("session_end", "end-exit.mp3"),
 
-    # stop_failure subtypes (matcher: error_type)
-    "stop_failure_rate_limit":            ("stop_failure", "notification-urgent.mp3"),
-    "stop_failure_authentication_failed": ("stop_failure", "notification-urgent.mp3"),
-    "stop_failure_billing_error":         ("stop_failure", "tool-failed.mp3"),
-    "stop_failure_invalid_request":       ("stop_failure", "tool-failed.mp3"),
-    "stop_failure_server_error":          ("stop_failure", "tool-failed.mp3"),
-    "stop_failure_max_output_tokens":     ("stop_failure", "tool-failed.mp3"),
-    "stop_failure_unknown":               ("stop_failure", None),
-    "stop_failure_other":                 ("stop_failure", None),
+    # stop_failure subtypes (matcher: error_type). v6.4.1: the full 11-value
+    # upstream set, one handler per value. Before 6.4.1 six of these collapsed
+    # onto a single "stop_failure_other" handler, so their per-variant toggles
+    # silently did nothing -- and "other" was never a real Claude Code value.
+    # Audio follows Claude Code's own bucketing: auth / billing /
+    # model_unavailable / transient.
+    "stop_failure_rate_limit":            ("stop_failure", "fail-rate-limit.mp3"),
+    "stop_failure_authentication_failed": ("stop_failure", "fail-auth.mp3"),
+    "stop_failure_oauth_org_not_allowed": ("stop_failure", "fail-oauth-org.mp3"),
+    "stop_failure_account_on_hold":       ("stop_failure", "fail-account-hold.mp3"),
+    "stop_failure_billing_error":         ("stop_failure", "fail-billing.mp3"),
+    "stop_failure_model_not_found":       ("stop_failure", "fail-model-not-found.mp3"),
+    "stop_failure_invalid_request":       ("stop_failure", "fail-invalid-request.mp3"),
+    "stop_failure_server_error":          ("stop_failure", "fail-server-error.mp3"),
+    "stop_failure_overloaded":            ("stop_failure", "fail-overloaded.mp3"),
+    "stop_failure_max_output_tokens":     ("stop_failure", "fail-max-tokens.mp3"),
+    "stop_failure_unknown":               ("stop_failure", "fail-unknown.mp3"),
 
     # notification subtypes (matcher: notification_type)
-    "notification_permission_prompt":  ("notification", "permission-request.mp3"),
-    "notification_idle_prompt":        ("notification", "notification-info.mp3"),
-    "notification_auth_success":       ("notification", "session-start.mp3"),
-    "notification_elicitation_dialog": ("notification", "elicitation.mp3"),
+    "notification_permission_prompt":  ("notification", "notif-permission-prompt.mp3"),
+    "notification_idle_prompt":        ("notification", "notif-idle-prompt.mp3"),
+    "notification_auth_success":       ("notification", "notif-auth-success.mp3"),
+    "notification_elicitation_dialog": ("notification", "notif-elicitation-dialog.mp3"),
     # v6.4 — the remaining four notification_type matchers Claude Code
     # documents. agent_needs_input / agent_completed require Claude Code
     # v2.1.198+; see SYNTHETIC_VARIANT_DEFAULTS for why all four ship off.
-    "notification_agent_needs_input":    ("notification", "permission-request.mp3"),
-    "notification_agent_completed":      ("notification", "subagent-complete.mp3"),
-    "notification_elicitation_complete": ("notification", "elicitation-result.mp3"),
-    "notification_elicitation_response": ("notification", "elicitation-result.mp3"),
+    "notification_agent_needs_input":    ("notification", "notif-agent-needs-input.mp3"),
+    "notification_agent_completed":      ("notification", "notif-agent-completed.mp3"),
+    "notification_elicitation_complete": ("notification", "notif-elicitation-complete.mp3"),
+    "notification_elicitation_response": ("notification", "notif-elicitation-response.mp3"),
+    # v6.5 — the remaining six typed notification_type values. Until now these
+    # fell through to the catch-all and shared one sound with no per-variant
+    # toggle. worker_permission_prompt and the quota_auto_resume_* trio are the
+    # away-from-desk ones: a subagent blocked on approval, and a session that
+    # resumed itself after a rate-limit window reset.
+    "notification_elicitation_url_dialog":    ("notification", "notif-elicitation-url.mp3"),
+    "notification_worker_permission_prompt":  ("notification", "notif-worker-permission.mp3"),
+    "notification_push_notification":         ("notification", "notif-push.mp3"),
+    "notification_computer_use_enter":        ("notification", "notif-computer-use-enter.mp3"),
+    "notification_computer_use_exit":         ("notification", "notif-computer-use-exit.mp3"),
+    "notification_quota_auto_resume_fired":   ("notification", "notif-quota-resumed.mp3"),
+    "notification_quota_auto_resume_stale":   ("notification", "notif-quota-stale.mp3"),
+    "notification_quota_auto_resume_disabled": ("notification", "notif-quota-disabled.mp3"),
 
     # precompact / postcompact subtypes (matcher: trigger)
-    "precompact_manual": ("precompact", None),
-    "precompact_auto":   ("precompact", None),
-    "postcompact_manual": ("postcompact", None),
-    "postcompact_auto":   ("postcompact", None),
+    "precompact_manual": ("precompact", "precompact-manual.mp3"),
+    "precompact_auto":   ("precompact", "precompact-auto.mp3"),
+    "postcompact_manual": ("postcompact", "postcompact-manual.mp3"),
+    "postcompact_auto":   ("postcompact", "postcompact-auto.mp3"),
+
+    # v6.5 — DirectoryAdded subtypes (matcher: source). Payload carries
+    # `directory` (absolute path) and source slash_command|register_repo_root.
+    "directory_added_slash_command":     ("directory_added", "dir-added-slash.mp3"),
+    "directory_added_register_repo_root": ("directory_added", "dir-added-repo-root.mp3"),
 
     # v6.2 — Setup subtypes (matcher: trigger init|maintenance)
-    "setup_init":        ("setup", None),
-    "setup_maintenance": ("setup", None),
+    "setup_init":        ("setup", "setup-init.mp3"),
+    "setup_maintenance": ("setup", "setup-maintenance.mp3"),
 }
 
 
@@ -802,6 +836,15 @@ NOTIFICATION_TYPE_LABELS: Dict[str, str] = {
     "elicitation_response": "Elicitation answered",
     "agent_needs_input":    "Background agent needs input",
     "agent_completed":      "Background agent finished",
+    # v6.5 additions.
+    "elicitation_url_dialog":     "Elicitation link opened",
+    "worker_permission_prompt":   "Subagent needs authorization",
+    "push_notification":          "Push notification",
+    "computer_use_enter":         "Computer use started",
+    "computer_use_exit":          "Computer use finished",
+    "quota_auto_resume_fired":    "Session auto-resumed after quota reset",
+    "quota_auto_resume_stale":    "Auto-resume expired",
+    "quota_auto_resume_disabled": "Auto-resume disabled",
 }
 
 
@@ -827,6 +870,17 @@ SYNTHETIC_VARIANT_DEFAULTS: Dict[str, bool] = {
     "notification_agent_completed": False,
     "notification_elicitation_complete": False,
     "notification_elicitation_response": False,
+    # v6.5: same rule, same reason -- `notification` is on by default, so each
+    # of these would start firing on every existing install the moment the
+    # matcher is registered.
+    "notification_elicitation_url_dialog": False,
+    "notification_worker_permission_prompt": False,
+    "notification_push_notification": False,
+    "notification_computer_use_enter": False,
+    "notification_computer_use_exit": False,
+    "notification_quota_auto_resume_fired": False,
+    "notification_quota_auto_resume_stale": False,
+    "notification_quota_auto_resume_disabled": False,
 }
 
 
@@ -851,7 +905,7 @@ CUSTOM_AUDIO_FILES = {
     "posttooluse": "chime-task-progress.mp3",
     "userpromptsubmit": "chime-prompt-received.mp3",
     "subagent_stop": "chime-subagent-complete.mp3",
-    "precompact": "chime-notification-info.mp3",
+    "precompact": "chime-pre-compact.mp3",
     "session_start": "chime-session-start.mp3",
     "session_end": "chime-session-end.mp3",
     "permission_request": "chime-permission-request.mp3",
@@ -868,6 +922,8 @@ CUSTOM_AUDIO_FILES = {
     # v5.0 hooks (dedicated chimes shipped in v5.0.1, generated via ElevenLabs)
     "permission_denied": "chime-permission-denied.mp3",
     "cwd_changed": "chime-cwd-changed.mp3",
+    "directory_added": "chime-directory-added.mp3",
+    "worktree_remove": "chime-worktree-removed.mp3",
     "file_changed": "chime-file-changed.mp3",
     "task_created": "chime-task-created.mp3",
     # v6.2 hooks — new editor lifecycle events (chime variants).
@@ -1019,11 +1075,42 @@ def should_filter(hook_type: str, stdin_data: dict, config: Dict[str, Any]) -> b
             log_debug(f"Filter: {hook_type} skipped — {running} background task(s) still running")
             return True
 
+    # v6.5: another reserved non-regex filter. PostToolUse and
+    # PostToolUseFailure carry ``duration_ms`` ("Tool execution time in
+    # milliseconds. Excludes permission-prompt and hook time"), which finally
+    # makes "only tell me about the slow ones" expressible. Debounce cannot do
+    # this -- it suppresses by wall-clock window, so it silences a burst of fast
+    # tools and a genuinely long build alike. A numeric threshold is also not
+    # something a regex over a stringified integer could express safely.
+    min_duration = filters.get("min_duration_ms")
+    if min_duration is not None:
+        try:
+            threshold = float(min_duration)
+        except (TypeError, ValueError):
+            threshold = 0.0
+        if threshold > 0:
+            raw = stdin_data.get("duration_ms")
+            try:
+                actual = float(raw)
+            except (TypeError, ValueError):
+                # Absent on older Claude Code, and on Cursor/Codex. Treat an
+                # unknown duration as "do not suppress" so the filter can never
+                # silence an editor that simply does not report it.
+                actual = None
+            if actual is not None and actual < threshold:
+                log_debug(
+                    f"Filter: {hook_type} skipped — took {actual:.0f}ms, "
+                    f"under the {threshold:.0f}ms threshold"
+                )
+                return True
+
     for field, pattern in filters.items():
         if not isinstance(pattern, str) or not pattern:
             continue
         if field.startswith("_"):
             continue  # skip comment keys
+        if field in ("skip_if_background_tasks_running", "min_duration_ms"):
+            continue  # reserved non-regex filters, handled above
 
         try:
             if field.endswith("_exclude"):
@@ -1623,6 +1710,23 @@ def get_notification_context(hook_type: str, stdin_data: dict, detail_level: str
         if detail_level == "minimal":
             return "Working directory changed"
         return f"cd {Path(str(new_cwd)).name}"
+
+    elif hook_type == "directory_added":
+        # v6.5. Sibling of cwd_changed: /add-dir or the SDK's register_repo_root
+        # bringing another root into the session.
+        directory = stdin_data.get("directory", "")
+        if not directory or detail_level == "minimal":
+            return "Directory added"
+        return f"Added {Path(str(directory)).name}"
+
+    elif hook_type == "worktree_remove":
+        # v6.5. Safe to sound on: unlike WorktreeCreate this is NOT a provider
+        # hook — it has no hookSpecificOutput variant and its stdout is
+        # discarded. See docs/EVENT_BEHAVIOR_NOTES.md.
+        path = stdin_data.get("worktree_path", "")
+        if not path or detail_level == "minimal":
+            return "Worktree removed"
+        return f"Worktree removed: {Path(str(path)).name}"
     elif hook_type == "file_changed":
         fp = stdin_data.get("file_path", "")
         if not fp:
@@ -2114,6 +2218,146 @@ def check_rate_limits(stdin_data: Dict[str, Any], config: Dict[str, Any]) -> Non
 # MAIN HOOK EXECUTION
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# terminalSequence (v6.5) — Claude Code emits an OSC escape on our behalf.
+# ---------------------------------------------------------------------------
+#
+# Claude Code 2.1.141+ reads a `terminalSequence` field from a hook's stdout
+# JSON and writes the sequence to the terminal itself. That is worth having:
+# it produces a desktop toast / window title / bell on every platform with no
+# dependencies, and it works even though a hook has no controlling terminal —
+# which is precisely the away-from-screen case echook exists for.
+#
+# It is also the one feature that requires this runner to write to stdout, and
+# writing to stdout is exactly what caused the v6.3.4 outage: `WorktreeCreate`
+# is a *provider* hook whose command form treats stdout as a return value, so a
+# hook that printed anything hijacked worktree creation. The containment rules
+# below are not defensive padding, they are the reason this is safe to ship:
+#
+#   1. Only events on TERMINAL_SEQUENCE_SAFE_EVENTS may emit. Everything else
+#      stays byte-for-byte silent on stdout.
+#   2. Emit ONLY {"terminalSequence": ...}. Never `hookSpecificOutput`, never
+#      `continue`, never `decision` — those fields change Claude Code's
+#      behaviour, and several events we register would act on them:
+#        * MessageDisplay.displayContent REPLACES Claude's visible output
+#        * Elicitation / ElicitationResult .action answers an MCP prompt
+#          (accept | decline | cancel) on the user's behalf
+#        * TeammateIdle / TaskCompleted honour {"continue": false}
+#   3. Claude Code only, by invoker. Cursor and Codex have no such contract and
+#      would treat the JSON as ordinary output.
+#   4. Opt-in. Default off.
+#
+# Upstream allows only OSC 0/1/2/9/99/777 and BEL; anything else is dropped.
+TERMINAL_SEQUENCE_SAFE_EVENTS = frozenset({
+    "notification",
+    "stop",
+    "stop_failure",
+    "permission_request",
+    "permission_denied",
+    "subagent_stop",
+    "task_completed",
+    "teammate_idle",
+    "session_end",
+})
+
+# Events that consume a hook's stdout JSON to change what Claude Code does.
+# Kept as data so tests/test_terminal_sequence.py can assert the two sets never
+# intersect, rather than trusting the comment above.
+TERMINAL_SEQUENCE_FORBIDDEN_EVENTS = frozenset({
+    "message_display",
+    "elicitation",
+    "elicitation_result",
+    "pretooluse",
+    "posttooluse",
+    "post_tool_batch",
+    "userpromptsubmit",
+    "user_prompt_expansion",
+    "session_start",
+    "setup",
+    "subagent_start",
+    "cwd_changed",
+    "file_changed",
+})
+
+_BEL = chr(7)   #  — terminates an OSC sequence
+_ESC = chr(27)  # \e — introduces one
+
+
+def _sanitise_osc_text(text: str, limit: int = 120) -> str:
+    """Strip anything that could terminate or re-open an escape sequence.
+
+    An unsanitised title is a terminal-injection vector: a BEL or ESC inside
+    the body closes our sequence early and hands the remainder to the terminal
+    as a fresh command. Semicolons delimit fields in OSC 777, so they go too.
+    """
+    unsafe = (_BEL, _ESC, ";")
+    cleaned = []
+    for ch in str(text):
+        if ch in unsafe:
+            cleaned.append(" ")
+        elif ord(ch) < 32 or ord(ch) == 127:
+            cleaned.append(" ")
+        else:
+            cleaned.append(ch)
+    return " ".join("".join(cleaned).split())[:limit]
+
+
+def build_terminal_sequence(style: str, title: str, body: str) -> Optional[str]:
+    """Build one allowed OSC sequence, or None if it cannot be made safely."""
+    title = _sanitise_osc_text(title, 60)
+    body = _sanitise_osc_text(body, 120)
+    if style == "bell":
+        return _BEL
+    if style == "title":
+        # OSC 2 — window title.
+        return f"{_ESC}]2;{title or 'Claude Code'}{_BEL}"
+    if style == "osc777":
+        # OSC 777 — rxvt/kitty/WezTerm desktop notification.
+        return f"{_ESC}]777;notify;{title or 'Claude Code'};{body}{_BEL}"
+    # Default: OSC 9 — iTerm2 / kitty / WezTerm / Ghostty.
+    message = f"{title}: {body}".strip(": ") if body else title
+    if not message:
+        return None
+    # Upstream rejects an OSC 9 body starting with a digit unless it is the
+    # 9;4 progress form, so make sure we never generate one by accident.
+    if message[0].isdigit():
+        message = "Claude Code " + message
+    return f"{_ESC}]9;{message}{_BEL}"
+
+
+def emit_terminal_sequence(hook_type: str, context: str, config: Dict[str, Any]) -> bool:
+    """Print {"terminalSequence": ...} for Claude Code to write out.
+
+    Returns True if something was printed. Every failure path returns False
+    silently: a notification channel must never be able to break the hook.
+    """
+    try:
+        settings = config.get("notification_settings", {}) or {}
+        ts = settings.get("terminal_sequence", {}) or {}
+        if not isinstance(ts, dict) or not ts.get("enabled"):
+            return False
+        if _get_invoker() != "claude-code":
+            return False
+        if hook_type in TERMINAL_SEQUENCE_FORBIDDEN_EVENTS:
+            return False
+        if hook_type not in TERMINAL_SEQUENCE_SAFE_EVENTS:
+            return False
+        allowed = ts.get("hook_types")
+        if isinstance(allowed, list) and allowed and hook_type not in allowed:
+            return False
+
+        style = str(ts.get("style", "osc9") or "osc9")
+        sequence = build_terminal_sequence(style, "Claude Code", context or hook_type)
+        if not sequence:
+            return False
+        sys.stdout.write(json.dumps({"terminalSequence": sequence}))
+        sys.stdout.write(chr(10))
+        sys.stdout.flush()
+        return True
+    except Exception:
+        return False
+
+
 def run_hook(hook_type: str, stdin_data: dict = None, variant: Optional[str] = None) -> int:
     """
     Main hook execution function.
@@ -2154,6 +2398,8 @@ def run_hook(hook_type: str, stdin_data: dict = None, variant: Optional[str] = N
     _CURSOR_UNSUPPORTED = {
         "notification", "permission_request",
         "setup", "user_prompt_expansion", "post_tool_batch", "message_display",
+        # v6.5 — Claude Code only.
+        "directory_added", "worktree_remove",
     }
     if _get_invoker() == "cursor" and hook_type in _CURSOR_UNSUPPORTED:
         log_event("debug", "skipped_no_cursor_equivalent", hook=hook_type)
@@ -2167,9 +2413,15 @@ def run_hook(hook_type: str, stdin_data: dict = None, variant: Optional[str] = N
     # hand-edited ~/.codex/hooks.json could, and a future Codex release might
     # add equivalents — skip cleanly so the behaviour is locked-down and
     # observable in the NDJSON log.
+    # session_end is NOT here since v6.5: Codex gained SessionEnd in 0.145.0 and
+    # `install --codex` registers it only when the installed Codex is new
+    # enough. On older builds it is simply never registered, so it cannot fire
+    # and needs no runtime guard.
     _CODEX_UNSUPPORTED = {
-        "notification", "session_end",
-        "elicitation", "elicitation_result", "cwd_changed", "file_changed",
+        "notification",
+        "elicitation", "elicitation_result", "cwd_changed",
+        "directory_added",
+        "worktree_remove", "file_changed",
         "task_created", "task_completed", "teammate_idle", "config_change",
         "instructions_loaded", "permission_denied",
         # v6.2 — Codex has none of the new Claude Code / Cursor lifecycle events.
@@ -2318,6 +2570,11 @@ def run_hook(hook_type: str, stdin_data: dict = None, variant: Optional[str] = N
     # Webhook (only if enabled)
     if webhook_enabled:
         send_webhook(hook_type, context, stdin_data or {}, config)
+
+    # terminalSequence — last, and the only thing in this runner that writes to
+    # stdout. Gated by an event allowlist; see emit_terminal_sequence.
+    if emit_terminal_sequence(hook_type, context, config):
+        log_event("info", "terminal_sequence_emitted", hook=hook_type)
 
     return 0
 

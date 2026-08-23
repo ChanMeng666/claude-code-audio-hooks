@@ -75,6 +75,7 @@ sync_file "$REPO/bin/audio-hooks.cmd"              "$PLUGIN/bin/audio-hooks.cmd"
 sync_file "$REPO/bin/audio-hooks-statusline"       "$PLUGIN/bin/audio-hooks-statusline"
 sync_file "$REPO/bin/audio-hooks-statusline.py"    "$PLUGIN/bin/audio-hooks-statusline.py"
 sync_file "$REPO/bin/audio-hooks-statusline.cmd"   "$PLUGIN/bin/audio-hooks-statusline.cmd"
+sync_file "$REPO/bin/audio-hooks-subagent-statusline.py" "$PLUGIN/bin/audio-hooks-subagent-statusline.py"
 sync_file "$REPO/config/default_preferences.json"  "$PLUGIN/config/default_preferences.json"
 
 # Cursor IDE hooks template (5.1.4+) — used by `audio-hooks install --cursor`

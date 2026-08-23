@@ -16,8 +16,8 @@ Single Python binary on PATH. JSON output, no prompts, no spinners.
 | `audio-hooks version` | Version + install mode detection |
 | `audio-hooks get <dotted.key>` | Read any config key |
 | `audio-hooks set <dotted.key> <value>` | Write any config key (auto-coerces) |
-| `audio-hooks hooks list` | All 37 hooks with current state (`--variants` adds the 30 matcher variants) |
-| `audio-hooks hooks list --variants` | Adds a `variants` key listing the 30 matcher variants; `hooks` stays at 37 rows |
+| `audio-hooks hooks list` | All 39 hooks with current state (`--variants` adds the 44 matcher variants) |
+| `audio-hooks hooks list --variants` | Adds a `variants` key listing the 44 matcher variants; `hooks` stays at 39 rows |
 | `audio-hooks hooks enable/disable <name>` | Toggle a hook **or a matcher variant** (`notification_idle_prompt`, `stop_failure_rate_limit`, …) |
 | `audio-hooks hooks enable-only <a> <b>` | Exclusive enable. Accepts variants; a named variant keeps its parent enabled, since a disabled parent silences all its variants |
 | `audio-hooks theme list/set <name>` | Audio theme |
@@ -31,6 +31,7 @@ Single Python binary on PATH. JSON output, no prompts, no spinners.
 | `audio-hooks install/uninstall` | Non-interactive install/uninstall |
 | `audio-hooks statusline show/install/uninstall` | Claude Code status line registration |
 | `audio-hooks statusline segments` | List all 29 Claude Code status line segments (name, line, source field, conditional) |
+| `audio-hooks statusline subagent show\|install\|uninstall` | Manage `subagentStatusLine` — one rendered row per subagent in Claude Code's agent panel. Separate settings key from the main status line, and a different output contract (NDJSON keyed by task id). |
 | `audio-hooks statusline codex show/preview/apply` | Curate Codex `[tui].status_line` and/or `terminal_title` (`--preset minimal\|balanced\|full`, `--items a,b,c`, `--target status_line\|terminal_title\|both`). Codex accepts only fixed item IDs — echook curates, it cannot render custom text |
 
 ## Configuration Keys
@@ -44,6 +45,10 @@ Single Python binary on PATH. JSON output, no prompts, no spinners.
 | `filters.<hook>.<field>` | string (regex) | — | Skip unless the stdin field matches |
 | `filters.<hook>.<field>_exclude` | string (regex) | — | Skip when the stdin field matches |
 | `filters.stop.skip_if_background_tasks_running` | bool | `false` | v6.4. Stay silent while any `background_tasks` entry on the `Stop` payload has `status: running` — teammates, subagents, background shells. The practical fix for "a chime after every message" |
+| `filters.<hook>.min_duration_ms` | int | — | v6.5. Only fire when the payload's `duration_ms` reaches this threshold. `PostToolUse`/`PostToolUseFailure` report tool execution time excluding permission prompts and hook time, so this expresses "only the slow ones" — which debounce cannot, since it suppresses by wall-clock window and cannot tell a burst of fast tools from one long build. Fails open: an editor that does not report `duration_ms` (Cursor, Codex) is never silenced by it. |
+| `notification_settings.terminal_sequence.enabled` | bool | `false` | v6.5. Ask Claude Code to emit an OSC escape on echook's behalf — desktop toast, window title or bell, cross-platform and with no dependencies, working even when the hook has no controlling terminal. Claude Code only. |
+| `notification_settings.terminal_sequence.style` | string | `osc9` | `osc9` (widest support: iTerm2/kitty/WezTerm/Ghostty) \| `osc777` \| `title` \| `bell`. |
+| `notification_settings.terminal_sequence.hook_types` | list | `[]` | Narrow further. Empty means every event echook considers safe to write stdout on — a hard allowlist that excludes `message_display`, `elicitation` and `elicitation_result`, whose stdout JSON changes what Claude Code does. |
 | `notification_settings.mode` | enum | `audio_and_notification` | `audio_only` / `notification_only` / `audio_and_notification` / `disabled` |
 | `notification_settings.detail_level` | enum | `standard` | `minimal` / `standard` / `verbose` |
 | `webhook_settings.enabled` | bool | `false` | Webhook fan-out |

@@ -83,16 +83,97 @@ Adding a `hooks` block took effect on the next event with no restart. Useful for
 
 Not a Claude Code behaviour as such, but it bit this investigation: a multi-account setup using `CLAUDE_CONFIG_DIR` may symlink `settings.json` between config dirs, so hook registrations are shared while plugin *data* (`user_preferences.json`) stays per-directory. Check with `realpath` before assuming two accounts are independent — a capture registered for one account will observe both.
 
+### `SessionStart` gained a `fork` source, and echook was silent for it
+
+Claude Code 2.1.213: *"Changed SessionStart hooks to report source `"fork"` when a session begins as a fork instead of `"resume"`."*
+
+Extracted from the 2.1.239 binary — the union is closed, not free-form:
+
+```
+SessionStart"),source:Or(["startup","resume","clear","compact","fork"])
+```
+
+echook registered the first four. Forked sessions used to land on `resume` and
+made a sound; after 2.1.213 they report `fork`, matched nothing, and went
+**completely silent**. Nothing failed and nothing logged — the registration was
+simply never invoked. Fixed in v6.4.1.
+
+This is the archetype for the drift this file exists to catch: the *event* name
+never changed, so no contract test could have noticed. Only the set of values a
+matcher can take moved underneath us.
+
+### `StopFailure` has eleven error types; `other` was never one of them
+
+Union from the same binary:
+
+```
+["authentication_failed","oauth_org_not_allowed","account_on_hold","billing_error",
+ "rate_limit","overloaded","invalid_request","model_not_found","server_error",
+ "unknown","max_output_tokens"]
+```
+
+Before v6.4.1 echook collapsed six of these onto a single handler registered as
+`stop_failure_other`. Two consequences, both invisible from the outside:
+
+- `other` is **not** a Claude Code value (zero occurrences in the binary), so
+  the arg named a matcher that could never be emitted.
+- Because `is_hook_enabled` received `stop_failure_other` as the variant,
+  setting `enabled_hooks.stop_failure_billing_error` had **no effect at all** —
+  while `hooks list --variants` and the manifest advertised all five collapsed
+  types as independently switchable.
+
+v6.4.1 registers one handler per real type and drops `other`. Claude Code's own
+bucketing of these types is a useful guide for choosing sounds: auth
+(`authentication_failed`, `oauth_org_not_allowed`, `account_on_hold`), billing
+(`billing_error`), model-unavailable (`model_not_found`), and the rest
+transient.
+
+### Cursor's `stop` *does* carry finality; Claude Code's does not
+
+The rule that `stop` cannot mean "task complete" is a **Claude Code** fact and
+must not be generalised. Cursor's `stop` payload carries `status`
+(`completed` / `aborted` / `error`) and `loop_count`, per
+[cursor.com/docs/hooks](https://cursor.com/docs/hooks). On Cursor you can at
+minimum give aborted and errored turns a different sound, or mute them.
+
+Sibling payload fields worth knowing on Cursor: `sessionEnd.reason`
+(`completed|aborted|error|window_close|user_close`), and `subagentStop`'s
+`status` / `duration_ms` / `tool_call_count` / `modified_files[]` / `summary` —
+that `summary` is a ready-made spoken notification with no transcript parsing.
+
+### Cursor bridges Claude Code hooks without de-duplicating
+
+[cursor.com/docs/reference/third-party-hooks](https://cursor.com/docs/reference/third-party-hooks):
+*"All matching hooks from every source run. When responses conflict,
+higher-priority sources take precedence during merge."*
+
+Priority decides whose *verdict* wins, not whether a duplicate side effect
+executes — and playing a sound is a side effect, not a verdict. So the native
+`--cursor` install genuinely double-fires alongside the bridged plugin, and
+`DUPLICATE_BRIDGE` is load-bearing. The user-facing toggle (Settings → Rules,
+Skills, Subagents → "Include third-party Plugins, Skills, and other configs")
+has **no effect on `cursor-agent`**, where bridging is hardcoded, so on the CLI
+the abort is the only defence available.
+
+### Windows: Cursor mis-executes bridged Claude Code hooks
+
+Reported on the Cursor forum and acknowledged by staff (2026-07-29): hooks
+imported from Claude Code are composed as PowerShell but executed with bash,
+which silently blocks every tool call. Relevant to this project specifically,
+since Windows is its primary development platform.
+
 ---
 
-## Matcher coverage as of v6.4.0
+## Matcher coverage as of v6.4.1
+
+44 variants across 8 matcher-scoped events.
 
 | Event | Matchers registered | Notes |
 |---|---|---|
-| `Notification` | all 8 documented types | 4 added in v6.4; `agent_*` pair unverified (above) |
-| `SessionEnd` | `clear`, `resume`, `logout`, `prompt_input_exit`, `bypass_permissions_disabled\|other` | first four were dead code until v6.4 — defined in `SYNTHETIC_EVENT_MAP` but the event was registered with no matcher, so nothing invoked them |
-| `SessionStart` | `startup`, `resume`, `clear`, `compact` | |
-| `StopFailure` | `rate_limit`, `authentication_failed`, and the remaining five collapsed onto one handler | the five collapsed types stay in `SYNTHETIC_EVENT_MAP` and are allowlisted in the contract test |
+| `Notification` | 8 of the 14 typed values | 4 added in v6.4; `agent_*` pair unverified (above). The six unregistered types — `elicitation_url_dialog`, `worker_permission_prompt`, `push_notification`, `computer_use_enter`/`_exit`, `quota_auto_resume_fired`/`_stale`/`_disabled` — still reach the catch-all, but share one sound with no per-variant toggle. `notification_type` is a bare string in the payload, not an enum, so unknown values are expected |
+| `SessionEnd` | `clear`, `resume`, `logout`, `prompt_input_exit`, `bypass_permissions_disabled\|other` | first four were dead code until v6.4 — defined in `SYNTHETIC_EVENT_MAP` but the event was registered with no matcher, so nothing invoked them. `bypass_permissions_disabled` is not a real upstream value; it is a harmless dead alternation kept only so the group still matches `other` |
+| `SessionStart` | `startup`, `resume`, `clear`, `compact`, **`fork`** | `fork` added in v6.4.1 — see above; forked sessions were silent from Claude Code 2.1.213 until then |
+| `StopFailure` | **all 11 upstream types, one handler each** | v6.4.1 unwound the five-way collapse onto `stop_failure_other` and dropped `other`, which was never a Claude Code value. Every variant toggle now actually works; the contract-test allowlist is empty as a result |
 | `PreCompact` / `PostCompact` / `Setup` | both/both/both | |
 | `PermissionRequest` | `""` (catch-all) | |
 

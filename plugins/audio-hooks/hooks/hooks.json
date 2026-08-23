@@ -18,7 +18,23 @@
       { "matcher": "agent_needs_input",
         "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_agent_needs_input", "async": true, "timeout": 10 }] },
       { "matcher": "agent_completed",
-        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_agent_completed", "async": true, "timeout": 10 }] }
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_agent_completed", "async": true, "timeout": 10 }] },
+      { "matcher": "elicitation_url_dialog",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_elicitation_url_dialog", "async": true, "timeout": 10 }] },
+      { "matcher": "worker_permission_prompt",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_worker_permission_prompt", "async": true, "timeout": 10 }] },
+      { "matcher": "push_notification",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_push_notification", "async": true, "timeout": 10 }] },
+      { "matcher": "computer_use_enter",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_computer_use_enter", "async": true, "timeout": 10 }] },
+      { "matcher": "computer_use_exit",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_computer_use_exit", "async": true, "timeout": 10 }] },
+      { "matcher": "quota_auto_resume_fired",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_quota_auto_resume_fired", "async": true, "timeout": 10 }] },
+      { "matcher": "quota_auto_resume_stale",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_quota_auto_resume_stale", "async": true, "timeout": 10 }] },
+      { "matcher": "quota_auto_resume_disabled",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" notification_quota_auto_resume_disabled", "async": true, "timeout": 10 }] }
     ],
 
     "Stop": [
@@ -30,8 +46,24 @@
         "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_rate_limit", "async": true, "timeout": 10 }] },
       { "matcher": "authentication_failed",
         "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_authentication_failed", "async": true, "timeout": 10 }] },
-      { "matcher": "billing_error|invalid_request|server_error|max_output_tokens|unknown",
-        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_other", "async": true, "timeout": 10 }] }
+      { "matcher": "oauth_org_not_allowed",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_oauth_org_not_allowed", "async": true, "timeout": 10 }] },
+      { "matcher": "account_on_hold",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_account_on_hold", "async": true, "timeout": 10 }] },
+      { "matcher": "billing_error",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_billing_error", "async": true, "timeout": 10 }] },
+      { "matcher": "overloaded",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_overloaded", "async": true, "timeout": 10 }] },
+      { "matcher": "invalid_request",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_invalid_request", "async": true, "timeout": 10 }] },
+      { "matcher": "model_not_found",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_model_not_found", "async": true, "timeout": 10 }] },
+      { "matcher": "server_error",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_server_error", "async": true, "timeout": 10 }] },
+      { "matcher": "unknown",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_unknown", "async": true, "timeout": 10 }] },
+      { "matcher": "max_output_tokens",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" stop_failure_max_output_tokens", "async": true, "timeout": 10 }] }
     ],
 
     "SessionStart": [
@@ -42,7 +74,9 @@
       { "matcher": "clear",
         "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" session_start_clear", "async": true, "timeout": 10 }] },
       { "matcher": "compact",
-        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" session_start_compact", "async": true, "timeout": 10 }] }
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" session_start_compact", "async": true, "timeout": 10 }] },
+      { "matcher": "fork",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" session_start_fork", "async": true, "timeout": 10 }] }
     ],
 
     "SessionEnd": [
@@ -134,6 +168,17 @@
 
     "ElicitationResult": [
       { "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" elicitation_result", "async": true, "timeout": 10 }] }
+    ],
+
+    "DirectoryAdded": [
+      { "matcher": "slash_command",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" directory_added_slash_command", "async": true, "timeout": 10 }] },
+      { "matcher": "register_repo_root",
+        "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" directory_added_register_repo_root", "async": true, "timeout": 10 }] }
+    ],
+
+    "WorktreeRemove": [
+      { "hooks": [{ "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/runner/run.py\" worktree_remove", "async": true, "timeout": 10 }] }
     ],
 
     "CwdChanged": [

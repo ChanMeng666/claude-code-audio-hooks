@@ -43,17 +43,41 @@ HOOK_SCRIPTS=(
     ".project_path"
 )
 
-# Hook events to remove from settings.json
+# Hook events to remove from settings.json.
+# MUST cover every event install-complete.sh can register, or an uninstall
+# leaves orphaned registrations behind in settings.json pointing at deleted
+# scripts. Guarded by tests/test_legacy_scripts_contract.py.
 HOOK_EVENTS=(
     "Notification"
     "Stop"
-    "PreToolUse"
-    "PostToolUse"
-    "UserPromptSubmit"
-    "SubagentStop"
-    "PreCompact"
+    "StopFailure"
     "SessionStart"
     "SessionEnd"
+    "SubagentStart"
+    "SubagentStop"
+    "PermissionRequest"
+    "PermissionDenied"
+    "TaskCreated"
+    "TaskCompleted"
+    "TeammateIdle"
+    "PreToolUse"
+    "PostToolUse"
+    "PostToolUseFailure"
+    "UserPromptSubmit"
+    "PreCompact"
+    "PostCompact"
+    "ConfigChange"
+    "InstructionsLoaded"
+    "Elicitation"
+    "ElicitationResult"
+    "CwdChanged"
+    "DirectoryAdded"
+    "WorktreeRemove"
+    "FileChanged"
+    "Setup"
+    "UserPromptExpansion"
+    "PostToolBatch"
+    "MessageDisplay"
 )
 
 # =============================================================================
@@ -227,9 +251,14 @@ try:
 
     # Hook events to remove
     hook_events = [
-        "Notification", "Stop", "PreToolUse", "PostToolUse",
-        "UserPromptSubmit", "SubagentStop", "PreCompact",
-        "SessionStart", "SessionEnd"
+        "Notification", "Stop", "StopFailure", "SessionStart", "SessionEnd",
+        "SubagentStart", "SubagentStop", "PermissionRequest",
+        "PermissionDenied", "TaskCreated", "TaskCompleted", "TeammateIdle",
+        "PreToolUse", "PostToolUse", "PostToolUseFailure", "UserPromptSubmit",
+        "PreCompact", "PostCompact", "ConfigChange", "InstructionsLoaded",
+        "Elicitation", "ElicitationResult", "CwdChanged", "DirectoryAdded",
+        "WorktreeRemove", "FileChanged",
+        "Setup", "UserPromptExpansion", "PostToolBatch", "MessageDisplay",
     ]
 
     # Hook scripts to look for

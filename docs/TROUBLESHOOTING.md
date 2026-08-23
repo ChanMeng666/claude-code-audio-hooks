@@ -28,6 +28,8 @@ It returns a JSON document listing the platform, audio player binary, the state 
 | `CURSOR_NOT_FOUND` | `install --cursor` couldn't find `~/.cursor/` | Install Cursor IDE first, then re-run |
 | `CODEX_HOOKS_DISABLED` | Codex hooks are installed but `[features].hooks = false` is set in `~/.codex/config.toml`. Codex won't invoke any hooks. | Remove the opt-out or set `hooks = true` under `[features]`, then restart Codex. Surfaced by `audio-hooks status` as `editor_targets.codex.warning`. |
 | `CODEX_CONFIG_PARSE_ERROR` | Codex hooks are installed but `~/.codex/config.toml` could not be parsed. | Fix the TOML syntax. Hooks are enabled by default unless `[features].hooks = false` is present. |
+| `NATIVE_NOTIFICATIONS_ACTIVE` | *(warning)* Claude Code's own `preferredNotifChannel` is set to something other than `notifications_disabled`, so it signals the same events echook does — expect a double bell or duplicate toast | Keep both, or set `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json` to hear only echook, or `audio-hooks hooks disable notification` to hear only Claude Code |
+| `CODEX_MANAGED_HOOKS_ONLY` | *(warning)* A managed Codex config sets `allow_managed_hooks_only`, so `$CODEX_HOME/hooks.json` is silently ignored — `install --codex` reports success and then never fires | Ask the owner of the named `requirements.toml` to permit user hooks, or install via the Codex plugin marketplace instead |
 | `INTERNAL_ERROR` | Unexpected internal error | `audio-hooks logs tail --level error --n 50` and report it as a GitHub issue |
 
 ## Symptoms
@@ -335,3 +337,51 @@ Issues: https://github.com/ChanMeng666/echook/issues
 - [CLAUDE.md](../CLAUDE.md) — canonical AI-facing operating guide
 - [docs/ARCHITECTURE.md](ARCHITECTURE.md) — developer-facing architecture deep dive
 - `audio-hooks manifest` — live machine description of every subcommand and config key (always up to date)
+
+### Forked sessions made no sound (fixed in v6.4.1)
+
+**Symptom.** Everything chimes normally, except sessions started as a fork — those are completely silent from the first event.
+
+**Cause.** Claude Code 2.1.213 changed `SessionStart` to report `source: "fork"` where it previously reported `"resume"`. echook registered `startup`/`resume`/`clear`/`compact` only, so a forked session matched no handler and the registration was simply never invoked. Nothing failed and nothing logged.
+
+**Fix.** Upgrade to v6.4.1 or later, which registers the `fork` matcher. Confirm with `audio-hooks hooks list --variants | grep session_start_fork`. Note the variant inherits `session_start`'s default, which is **off** — enable it with `audio-hooks hooks enable session_start_fork` if you want a sound on fork specifically.
+
+### I hear two notifications for the same event (bell plus echook's sound)
+
+**Cause.** Claude Code has its own notification channel, controlled by `preferredNotifChannel` in `~/.claude/settings.json`. Anything other than `"notifications_disabled"` means Claude Code signals the same moments echook does — most visibly with `terminal_bell` or `iterm2_with_bell`.
+
+`audio-hooks diagnose` reports this as the warning `NATIVE_NOTIFICATIONS_ACTIVE`.
+
+**Fix — pick whichever channel you actually want:**
+- keep only echook: set `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`
+- keep only Claude Code's: `audio-hooks hooks disable notification`
+- keep both: nothing to do, the warning is informational
+
+This is not a bug in either tool; they are independent notification systems that happen to agree on when something interesting happened.
+
+### `install --codex` succeeded but Codex is permanently silent
+
+**Cause.** A managed Codex deployment can set `allow_managed_hooks_only` in `requirements.toml`. When it does, `$CODEX_HOME/hooks.json` — exactly what `install --codex` writes — is **ignored with no error at all**. The install reports success and echook never fires, which is indistinguishable from a bug in echook unless you know to look.
+
+`audio-hooks diagnose` reports this as `CODEX_MANAGED_HOOKS_ONLY` and names the file.
+
+**Fix.** Either ask whoever owns the managed config to permit user hooks, or install through the Codex plugin marketplace instead of the native path (`codex plugin marketplace add ChanMeng666/echook`), since plugin-bundled hooks load by a different route.
+
+### Desktop notifications (`terminalSequence`) do not appear
+
+Check these in order:
+
+1. **Is it on?** It ships off. `audio-hooks get notification_settings.terminal_sequence.enabled` → must be `true`.
+2. **Are you on Claude Code?** Cursor and Codex have no equivalent and the runner never emits there by design. Use a webhook (`webhook set --url … --format ntfy`) to reach a phone from those editors.
+3. **Does your terminal honour the OSC?** `osc9` (the default) works in iTerm2, kitty, WezTerm and Ghostty. If yours ignores it, try `--style osc777`, or fall back to `title` or `bell`, which almost everything supports.
+4. **Is the event on the allowlist?** Only events that are safe to write stdout on can emit. `message_display`, `elicitation` and `elicitation_result` are hard-excluded because Claude Code reads a hook's stdout JSON on those events to change what it *does* — `MessageDisplay` would replace Claude's visible output, and the elicitation pair would answer an MCP prompt on your behalf. There is deliberately no setting that overrides this.
+5. **Is your OS notification centre suppressing it?** A focus/do-not-disturb mode swallows OSC 9 toasts silently. `--style bell` is a quick way to tell whether the sequence is arriving at all.
+
+### The per-subagent status line shows nothing
+
+1. `audio-hooks statusline subagent show` — confirm `registered: true`.
+2. **Restart Claude Code.** The setting is read at startup.
+3. **It only renders in the agent panel**, with subagents actually running. A session with no tasks has no rows to draw — this is not a failure.
+4. It is **independent of the main status line**: `statusline install` does not install it, and vice versa.
+5. If rows are still blank, check Claude Code's own logs for `subagentStatusLine emitted non-JSON line` or `emitted invalid schema`. Those mean the renderer's output drifted from the required contract — one JSON object per line, each with both `id` and `content`, `id` matching a task from stdin.
+

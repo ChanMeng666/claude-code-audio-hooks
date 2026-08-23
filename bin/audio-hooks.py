@@ -156,7 +156,7 @@ def require_project_root() -> int:
 # Project state — version, install detection, hook catalogue
 # ---------------------------------------------------------------------------
 
-PROJECT_VERSION = "6.4.0"
+PROJECT_VERSION = "6.5.0"
 
 # Canonical hook catalogue. Order matches CLAUDE.md and the install scripts.
 HOOK_CATALOG: List[Dict[str, Any]] = [
@@ -170,7 +170,7 @@ HOOK_CATALOG: List[Dict[str, Any]] = [
     {"name": "posttooluse",          "default": False, "audio": "task-progress.mp3",         "description": "After each tool execution (very noisy)"},
     {"name": "posttoolusefailure",   "default": False, "audio": "tool-failed.mp3",           "description": "Tool execution failed"},
     {"name": "userpromptsubmit",     "default": False, "audio": "prompt-received.mp3",       "description": "User submitted a prompt"},
-    {"name": "precompact",           "default": False, "audio": "notification-info.mp3",     "description": "Before context compaction"},
+    {"name": "precompact",           "default": False, "audio": "pre-compact.mp3",     "description": "Before context compaction"},
     {"name": "postcompact",          "default": False, "audio": "post-compact.mp3",          "description": "After context compaction"},
     {"name": "subagent_start",       "default": False, "audio": "subagent-start.mp3",        "description": "Subagent spawned"},
     {"name": "teammate_idle",        "default": False, "audio": "teammate-idle.mp3",         "description": "Agent Teams teammate going idle"},
@@ -183,6 +183,8 @@ HOOK_CATALOG: List[Dict[str, Any]] = [
     # New in v5.0 (dedicated audio shipped in v5.0.1, generated via ElevenLabs).
     {"name": "permission_denied",    "default": False, "audio": "permission-denied.mp3",     "description": "Auto mode classifier denied a tool call (v5.0)"},
     {"name": "cwd_changed",          "default": False, "audio": "cwd-changed.mp3",           "description": "Working directory changed (v5.0)"},
+    {"name": "directory_added",      "default": False, "audio": "directory-added.mp3",           "description": "A directory was added to the session via /add-dir or register_repo_root (v6.5)"},
+    {"name": "worktree_remove",      "default": False, "audio": "worktree-removed.mp3",           "description": "A git worktree was removed (v6.5). Not a provider hook, unlike WorktreeCreate"},
     {"name": "file_changed",         "default": False, "audio": "file-changed.mp3",          "description": "Watched file changed on disk (v5.0)"},
     {"name": "task_created",         "default": False, "audio": "task-created.mp3",          "description": "Task created via TaskCreate (v5.0)"},
     # New in v6.2 — Claude Code lifecycle events added since v5.0.
@@ -1155,6 +1157,8 @@ _MOCK_STDIN: Dict[str, Dict[str, Any]] = {
     "subagent_stop": {"hook_event_name": "SubagentStop", "agent_type": "Explore", "last_assistant_message": "Done.", "session_id": "test-session"},
     "session_start": {"hook_event_name": "SessionStart", "source": "startup", "session_id": "test-session"},
     "cwd_changed": {"hook_event_name": "CwdChanged", "new_cwd": "/tmp", "session_id": "test-session"},
+    "directory_added": {"hook_event_name": "DirectoryAdded", "directory": "/tmp/added", "source": "slash_command", "session_id": "test-session"},
+    "worktree_remove": {"hook_event_name": "WorktreeRemove", "worktree_path": "/tmp/wt", "session_id": "test-session"},
     "file_changed": {"hook_event_name": "FileChanged", "file_path": "/tmp/.env", "session_id": "test-session"},
     "task_created": {"hook_event_name": "TaskCreated", "task_subject": "Test task", "session_id": "test-session"},
 }
@@ -1228,7 +1232,39 @@ def _check_settings_json() -> Dict[str, Any]:
         "disable_all_hooks": bool(data.get("disableAllHooks")),
         "disable_skill_shell_execution": bool(data.get("disableSkillShellExecution")),
         "hooks_registered": isinstance(data.get("hooks"), dict) and bool(data.get("hooks")),
+        # v6.4.1: Claude Code delivers its OWN terminal notification on the same
+        # events echook plays a sound for. Anything other than
+        # "notifications_disabled" means the user hears/sees both.
+        "preferred_notif_channel": data.get("preferredNotifChannel"),
     }
+
+
+def _check_codex_managed_hooks_only() -> Dict[str, Any]:
+    """Detect the enterprise setting that silently ignores a user hooks.json.
+
+    Codex's managed ``requirements.toml`` may set ``allow_managed_hooks_only``.
+    When it does, ``$CODEX_HOME/hooks.json`` — exactly what
+    ``audio-hooks install --codex`` writes — is ignored with no error at all.
+    The install reports success and echook is then permanently mute, which is
+    indistinguishable from a bug in echook unless you know to look here.
+    """
+    codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
+    for name in ("requirements.toml", "managed_config.toml"):
+        path = codex_home / name
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        # Deliberately a text scan, not a TOML parse: tomllib is 3.11+ and this
+        # only needs to spot one boolean in a file we never write.
+        match = re.search(
+            r"^\s*allow_managed_hooks_only\s*=\s*(true|false)\s*$",
+            text,
+            re.MULTILINE | re.IGNORECASE,
+        )
+        if match and match.group(1).lower() == "true":
+            return {"active": True, "path": str(path)}
+    return {"active": False}
 
 
 def _check_audio_files() -> Dict[str, Any]:
@@ -1278,6 +1314,41 @@ def cmd_diagnose(_args: List[str]) -> int:
             "code": "HOOKS_NOT_REGISTERED",
             "message": "No hooks block found in ~/.claude/settings.json and no plugin install detected.",
             "suggested_command": "audio-hooks install --plugin",
+        })
+
+    notif_channel = settings.get("preferred_notif_channel")
+    if notif_channel and notif_channel != "notifications_disabled":
+        warnings.append({
+            "code": "NATIVE_NOTIFICATIONS_ACTIVE",
+            "message": (
+                "Claude Code's own notifications are on "
+                f"(preferredNotifChannel: {notif_channel}), so it signals the same "
+                "events echook does — expect a double bell or a duplicate toast."
+            ),
+            "hint": (
+                "Keep both if you want belt-and-braces. To hear only echook, set "
+                "preferredNotifChannel to \"notifications_disabled\" in "
+                "~/.claude/settings.json. To hear only Claude Code, run "
+                "audio-hooks hooks disable notification."
+            ),
+            "suggested_command": "audio-hooks hooks list",
+        })
+
+    codex_managed = _check_codex_managed_hooks_only()
+    if codex_managed.get("active"):
+        warnings.append({
+            "code": "CODEX_MANAGED_HOOKS_ONLY",
+            "message": (
+                "Codex is configured with allow_managed_hooks_only, so "
+                "$CODEX_HOME/hooks.json is ignored. A native --codex install "
+                "reports success and then never fires."
+            ),
+            "hint": (
+                "Ask whoever owns "
+                f"{codex_managed.get('path')} to allow user hooks, or install "
+                "echook through the Codex plugin marketplace instead."
+            ),
+            "suggested_command": "audio-hooks install --codex",
         })
 
     audio_player = _detect_audio_player()
@@ -1642,10 +1713,48 @@ def _check_codex_feature_flag(config_path: Path) -> Dict[str, Any]:
     return result
 
 
+def _codex_version():
+    """Detect the installed Codex CLI version, or None if it cannot be read."""
+    exe = shutil.which("codex")
+    if not exe:
+        return None
+    try:
+        out = subprocess.run(
+            [exe, "--version"], capture_output=True, text=True, timeout=15
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", out or "")
+    if not match:
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+# Codex gained the SessionEnd hook in 0.145.0 (PR #33895). Registering it on an
+# older build is not a harmless no-op: the hooks event map is a serde struct
+# that rejects unknown keys ("unknown field" / "unexpected map key" sit beside
+# the event-name table in the binary, next to "failed to parse hooks config"),
+# and a hooks.json that fails to parse takes *every* hook down with it, not
+# just the unknown one. So it is injected at install time only when the
+# installed Codex is new enough, rather than shipped in the template.
+CODEX_SESSION_END_MIN_VERSION = (0, 145, 0)
+
+# SessionEnd runs during thread teardown, which upstream keeps deliberately
+# tight: 1s default timeout, capped at 3s, and async hooks forced synchronous
+# with a warning. Root threads only -- subagents do not fire it.
+CODEX_SESSION_END_ENTRY = {
+    "hooks": [{
+        "type": "command",
+        "command": '{{PYTHON}} "{{HOOK_RUNNER}}" session_end --invoker codex',
+        "timeout": 1,
+    }],
+}
+
+
 def _install_codex() -> int:
     """Install audio-hooks for Codex CLI via ``$CODEX_HOME/hooks.json``.
 
-    Codex (per developers.openai.com/codex/hooks) does NOT auto-bridge Claude
+    Codex (per learn.chatgpt.com/docs/hooks) does NOT auto-bridge Claude
     Code plugins, so there is no ``DUPLICATE_BRIDGE`` concern. The install
     writes ``$CODEX_HOME/hooks.json`` (default ``~/.codex/hooks.json``),
     seeds ``$CODEX_HOME/audio-hooks-data/``, and emits AI-readable
@@ -1683,6 +1792,18 @@ def _install_codex() -> int:
         new_doc = json.loads(template_text)
     except json.JSONDecodeError as e:
         return emit_error("INTERNAL_ERROR", f"Template is not valid JSON after substitution: {e}")
+
+    # SessionEnd is version-gated -- see CODEX_SESSION_END_MIN_VERSION.
+    codex_ver = _codex_version()
+    session_end_registered = False
+    if codex_ver is not None and codex_ver >= CODEX_SESSION_END_MIN_VERSION:
+        entry = json.loads(
+            json.dumps(CODEX_SESSION_END_ENTRY)
+            .replace("{{PYTHON}}", python_bin)
+            .replace("{{HOOK_RUNNER}}", hook_runner_for_json)
+        )
+        new_doc.setdefault("hooks", {})["SessionEnd"] = [entry]
+        session_end_registered = True
 
     # Tag every hook entry so uninstall can find ours and leave foreign entries.
     for event_name, entries in new_doc.get("hooks", {}).items():
@@ -2037,7 +2158,7 @@ STATUSLINE_SEGMENTS: List[Dict[str, Any]] = [
 
 # Codex's status line is NOT command-backed: it accepts only a fixed, ordered
 # list of built-in item IDs under [tui].status_line in config.toml (command
-# rendering is open feature request openai/codex#20140). echook can therefore
+# rendering is open feature request openai/codex#17827). echook can therefore
 # only *curate* that list. These presets are de-duplicated and ordered to fit
 # Codex's single rendered line so it no longer truncates with an ellipsis.
 CODEX_STATUSLINE_PRESETS: Dict[str, List[str]] = {
@@ -2049,12 +2170,38 @@ CODEX_STATUSLINE_PRESETS: Dict[str, List[str]] = {
         "context-remaining", "five-hour-limit", "weekly-limit", "codex-version",
     ],
     "full": [
-        "model-with-reasoning", "project-name", "git-branch", "branch-changes",
-        "pull-request-number", "run-state", "approval-mode", "context-remaining",
-        "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit",
-        "codex-version", "task-progress",
+        # v6.5 additions: thread-title (session identity -- `full` had none),
+        # fast-mode (the /fast toggle is user-visible state nothing surfaced),
+        # context-used (echook's Claude Code line is context-centric; Codex only
+        # had the remaining half), and the two 0.148 Enterprise items. Items with
+        # no value are simply not drawn by Codex, so the Enterprise-only pair is
+        # harmless on personal plans rather than an empty slot.
+        "model-with-reasoning", "thread-title", "project-name", "git-branch",
+        "branch-changes", "pull-request-number", "run-state", "approval-mode",
+        "context-remaining", "context-used", "used-tokens", "context-window-size",
+        "five-hour-limit", "weekly-limit", "fast-mode", "codex-version",
+        "task-progress", "thread-credits", "estimated-thread-cost",
     ],
 }
+
+# Every item ID Codex 0.143 accepts, recovered from the binary's enum + the
+# parallel description table. echook curates from this set; it cannot render
+# custom text (upstream FR openai/codex#17827 is still open). Kept as data so
+# `statusline codex --items` can reject a typo instead of writing a silent
+# no-op into config.toml.
+CODEX_KNOWN_STATUSLINE_ITEMS = frozenset({
+    "model", "model-with-reasoning", "reasoning", "current-dir", "project-name",
+    "git-branch", "pull-request-number", "branch-changes", "run-state",
+    "approval", "approval-mode", "context-remaining", "context-used",
+    "five-hour-limit", "weekly-limit", "codex-version", "context-window-size",
+    "used-tokens", "total-input-tokens", "total-output-tokens", "thread-id",
+    "fast-mode", "raw-output", "thread-title", "workspace-headline",
+    "task-progress",
+    # 0.148.0, Enterprise workspaces only (#38282).
+    "thread-credits", "estimated-thread-cost",
+    # terminal_title only.
+    "activity", "app-name",
+})
 
 # The terminal title (tab/window title) shares the same item-ID family and the
 # same redundancy/truncation problem — a title is short, so a 20-item list is
@@ -2310,6 +2457,17 @@ def _cmd_statusline_codex(args: List[str]) -> int:
             source = f"preset:{chosen}"
         if not items:
             return emit_error("INVALID_USAGE", f"No items resolved for {key} (empty --items?)")
+        # Codex silently ignores an item ID it does not know, so a typo would be
+        # written into config.toml and then simply never render -- with no way to
+        # tell that apart from an item that has no value yet. Reject it here.
+        unknown = [i for i in items if i not in CODEX_KNOWN_STATUSLINE_ITEMS]
+        if unknown:
+            return emit_error(
+                "INVALID_USAGE",
+                f"Unknown Codex status line item(s) for {key}: {', '.join(unknown)}. "
+                f"Codex renders a fixed set; run 'audio-hooks statusline codex show' "
+                f"for the valid IDs.",
+            )
         resolved[key] = items
 
     if action == "preview":
@@ -2374,6 +2532,82 @@ def _cmd_statusline_codex(args: List[str]) -> int:
     return 0
 
 
+def _cmd_statusline_subagent(args: List[str]) -> int:
+    """Manage `subagentStatusLine` — Claude Code's per-subagent row.
+
+    A second settings key, entirely separate from `statusLine`: it renders one
+    row per task in the agent panel instead of one line for the session. Note
+    the different output contract — NDJSON keyed by task id, not free text —
+    which is why it gets its own renderer rather than reusing the main one.
+    """
+    settings_path = Path.home() / ".claude" / "settings.json"
+    script = PROJECT_ROOT / "bin" / "audio-hooks-subagent-statusline.py"
+    sub = args[0] if args else "show"
+
+    def _read_settings() -> Dict[str, Any]:
+        if not settings_path.exists():
+            return {}
+        try:
+            return json.loads(settings_path.read_text(encoding="utf-8")) or {}
+        except json.JSONDecodeError:
+            return {}
+
+    if sub == "show":
+        settings = _read_settings()
+        current = settings.get("subagentStatusLine")
+        emit({
+            "ok": True,
+            "script": str(script),
+            "exists": script.exists(),
+            "settings_file": str(settings_path),
+            "registered": isinstance(current, dict) and current.get("type") == "command",
+            "command": (current or {}).get("command") if isinstance(current, dict) else None,
+            "note": (
+                "Separate from statusLine. Renders one row per subagent in the "
+                "agent panel; output is NDJSON ({id, content}) keyed by task id."
+            ),
+        })
+        return 0
+
+    if sub == "install":
+        if not script.exists():
+            return emit_error("INTERNAL_ERROR", f"subagent status line script not found at {script}")
+        try:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            settings = _read_settings()
+            cmd_str = f'python "{script}"' if platform.system() == "Windows" else str(script)
+            # Only type + command are accepted here; unlike statusLine there is
+            # no padding/refreshInterval on this key.
+            settings["subagentStatusLine"] = {"type": "command", "command": cmd_str}
+            settings_path.write_text(json.dumps(settings, indent=2) + chr(10), encoding="utf-8")
+            emit({
+                "ok": True,
+                "registered": True,
+                "settings_file": str(settings_path),
+                "command": cmd_str,
+                "next_steps": ["Restart Claude Code, or start a session with subagents, to see the rows."],
+            })
+            return 0
+        except OSError as e:
+            return emit_error("INTERNAL_ERROR", str(e))
+
+    if sub == "uninstall":
+        if not settings_path.exists():
+            emit({"ok": True, "registered": False})
+            return 0
+        settings = _read_settings()
+        if "subagentStatusLine" in settings:
+            del settings["subagentStatusLine"]
+            try:
+                settings_path.write_text(json.dumps(settings, indent=2) + chr(10), encoding="utf-8")
+            except OSError as e:
+                return emit_error("INTERNAL_ERROR", str(e))
+        emit({"ok": True, "registered": False})
+        return 0
+
+    return emit_error("INVALID_USAGE", f"Unknown statusline subagent subcommand: {sub}")
+
+
 def cmd_statusline(args: List[str]) -> int:
     """Manage the status line: Claude Code registration + segment catalog, and
     Codex [tui].status_line curation."""
@@ -2398,6 +2632,9 @@ def cmd_statusline(args: List[str]) -> int:
 
     if sub == "codex":
         return _cmd_statusline_codex(args[1:])
+
+    if sub == "subagent":
+        return _cmd_statusline_subagent(args[1:])
 
     if sub == "show":
         statusline_script = PROJECT_ROOT / "bin" / "audio-hooks-statusline.py"
@@ -2821,6 +3058,51 @@ def _build_manifest_schema() -> Dict[str, Any]:
     }
 
 
+# Mirrors the command shape in plugins/audio-hooks/hooks/hooks.json:
+#   python "${CLAUDE_PLUGIN_ROOT}/runner/run.py" <arg>
+_TEMPLATE_ARG_RE = re.compile(r'run\.py"?\s+([a-z_]+)')
+
+
+def _claude_code_registered_events() -> List[str]:
+    """Canonical events echook actually registers with Claude Code.
+
+    Derived from ``plugins/audio-hooks/hooks/hooks.json`` — the real template —
+    rather than from ``HOOK_CATALOG``. The catalog holds every canonical event
+    across all three editors, including the nine Cursor-only ones
+    (``shell_before``/``shell_after``, ``mcp_before``/``mcp_after``,
+    ``file_read``, ``agent_response``, ``agent_thinking``, ``workspace_open``,
+    ``tab_file_edit``) that Claude Code has no equivalent for and that the
+    template never registers. Reporting the catalog here claimed 37 supported
+    events when the true surface is 28, and CLAUDE.md tells operators the
+    manifest is the live source of truth — so the lie propagated.
+
+    Falls back to the catalog if the template cannot be read, so the manifest
+    still renders on a partial checkout.
+    """
+    template = PROJECT_ROOT / "plugins" / "audio-hooks" / "hooks" / "hooks.json"
+    try:
+        data = json.loads(template.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [h["name"] for h in HOOK_CATALOG]
+
+    registered = set()
+    for groups in (data.get("hooks") or {}).values():
+        for group in groups or []:
+            for handler in (group or {}).get("hooks") or []:
+                match = _TEMPLATE_ARG_RE.search(str((handler or {}).get("command", "")))
+                if not match:
+                    continue
+                arg = match.group(1)
+                # Variant args (session_start_fork) map back to their parent.
+                canonical, _audio = getattr(HR, "SYNTHETIC_EVENT_MAP", {}).get(
+                    arg, (arg, None)
+                )
+                registered.add(canonical)
+
+    # Preserve HOOK_CATALOG order so the list stays stable and readable.
+    return [h["name"] for h in HOOK_CATALOG if h["name"] in registered]
+
+
 def _build_manifest() -> Dict[str, Any]:
     error_codes: Dict[str, Dict[str, str]] = {}
     if HR is not None:
@@ -2870,6 +3152,7 @@ def _build_manifest() -> Dict[str, Any]:
             {"name": "statusline install", "args": [], "description": "Register the echook status line in ~/.claude/settings.json"},
             {"name": "statusline uninstall", "args": [], "description": "Remove the echook status line registration"},
             {"name": "statusline segments", "args": [], "description": "List every Claude Code status line segment (name, line, source field, conditional) for configuring visible_segments / hidden_segments"},
+        {"name": "statusline subagent show|install|uninstall", "args": [], "description": "Manage Claude Code's per-subagent status line (subagentStatusLine) — one rendered row per task in the agent panel. Separate settings key and a different output contract (NDJSON keyed by task id) from the main status line."},
             {"name": "statusline codex show", "args": [], "description": "Show the current Codex [tui].status_line + terminal_title and whether they likely overflow"},
             {"name": "statusline codex preview", "args": ["[--preset minimal|balanced|full]", "[--items a,b,c]", "[--target status_line|terminal_title|both]"], "description": "Print the curated Codex status_line / terminal_title that would be written (no write)"},
             {"name": "statusline codex apply", "args": ["[--preset minimal|balanced|full]", "[--items a,b,c]", "[--target status_line|terminal_title|both]"], "description": "Curate Codex [tui].status_line and/or terminal_title in config.toml (backs up first) so they stop truncating. Codex accepts only fixed item IDs — echook curates, it cannot render custom text."},
@@ -2936,7 +3219,7 @@ def _build_manifest() -> Dict[str, Any]:
         "editor_targets": _detect_editor_targets(),
         "supported_editors": {
             "claude-code": {
-                "events": [h["name"] for h in HOOK_CATALOG],
+                "events": _claude_code_registered_events(),
                 "install_via": "/plugin install audio-hooks@chanmeng-audio-hooks",
             },
             "cursor": {
@@ -2980,13 +3263,23 @@ def _build_manifest() -> Dict[str, Any]:
                     "subagent_start",
                     "subagent_stop",
                     "stop",
+                    "session_end",
                 ],
+                "session_end_note": (
+                    "Codex gained SessionEnd in 0.145.0 (#33895). `install --codex` "
+                    "registers it only when the installed Codex is >= 0.145.0, because "
+                    "the hooks event map rejects unknown keys and a hooks.json that "
+                    "fails to parse disables every hook, not just the unknown one. "
+                    "Teardown constraints upstream: 1s default timeout, 3s cap, async "
+                    "forced synchronous, root threads only."
+                ),
                 "unsupported_events": [
                     "notification",
-                    "session_end",
                     "elicitation",
                     "elicitation_result",
                     "cwd_changed",
+                    "directory_added",
+                    "worktree_remove",
                     "file_changed",
                     "task_created",
                     "task_completed",
@@ -3012,7 +3305,7 @@ def _build_manifest() -> Dict[str, Any]:
                 "feature_flag": "Codex hooks are enabled by default. `[features].hooks = false` in $CODEX_HOME/config.toml disables all hooks; remove it or set hooks = true to re-enable. Legacy `[features].codex_hooks = true` is recognized as explicitly enabled.",
                 "plugin_install_via": "codex plugin marketplace add ChanMeng666/echook && codex plugin add audio-hooks@chanmeng-audio-hooks",
                 "native_install_via": "audio-hooks install --codex",
-                "doc_url": "https://developers.openai.com/codex/hooks",
+                "doc_url": "https://learn.chatgpt.com/docs/hooks",
             },
         },
         "env_vars": {

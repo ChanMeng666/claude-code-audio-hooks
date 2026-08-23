@@ -1,6 +1,6 @@
 ---
 name: audio-hooks
-description: Use whenever the user asks to install, configure, uninstall, snooze, mute, test, troubleshoot, or change settings for the echook audio notification system. Trigger phrases include "audio hooks", "audio notifications", "snooze audio", "mute claude", "claude is too loud", "test audio", "switch audio theme", "rate limit alerts", "audio webhook", "TTS", "text to speech", "notification mode", "audio only", "notification only", "debounce", "status line", "statusline", "context usage", "context window", "context monitor", "compact reminder", "uninstall audio", "audio status", "audio version", "install for cursor", "install for codex", "codex audio", "codex hooks", "cursor audio", "cursor hooks", and the slash command /audio-hooks. Also use when diagnosing why Claude Code, Cursor, or Codex is silent (or noisy) for the user, or when the user wants to monitor context window usage.
+description: Use whenever the user asks to install, configure, uninstall, snooze, mute, test, troubleshoot, or change settings for the echook audio notification system. Trigger phrases include "audio hooks", "audio notifications", "snooze audio", "mute claude", "claude is too loud", "test audio", "switch audio theme", "rate limit alerts", "audio webhook", "TTS", "text to speech", "notification mode", "audio only", "notification only", "debounce", "status line", "statusline", "context usage", "context window", "context monitor", "compact reminder", "uninstall audio", "audio status", "audio version", "install for cursor", "install for codex", "codex audio", "codex hooks", "cursor audio", "cursor hooks", "desktop notification", "desktop toast", "terminal bell", "window title", "notify me when done", "tell me when it finishes", "notify me while I am away", "subagent status line", "agent panel", "per-agent status", "only notify me for slow commands", "only when it takes a while", "quiet fast tools", and the slash command /audio-hooks. Also use when diagnosing why Claude Code, Cursor, or Codex is silent (or noisy) for the user, when the user wants to monitor context window usage, when they want to be notified away from the screen (desktop toast, bell, window title), or when they want a status row per subagent in the agent panel.
 ---
 
 # audio-hooks skill
@@ -55,7 +55,7 @@ Duration syntax: `30m`, `1h`, `90s`, `2d`, or a bare integer (interpreted as min
 
 **Enable / disable individual hooks**
 
-Run `audio-hooks hooks list` to see all 37 hooks with their current state (add `--variants` for the 30 matcher variants). Then:
+Run `audio-hooks hooks list` to see all 39 hooks with their current state (add `--variants` for the 44 matcher variants). Then:
 
 | User says | Run |
 |---|---|
@@ -71,17 +71,18 @@ Run `audio-hooks hooks list` to see all 37 hooks with their current state (add `
 
 Almost every "it's too noisy" report is the `stop` hook, and the user's mental model of it is wrong in a specific way. `stop` fires at the **end of every turn**, not at task completion, and Claude Code exposes **no field** distinguishing a final turn from an intermediate one — so there is no setting that makes `stop` mean "the task is done". Say this plainly rather than tuning debounce and hoping.
 
-Three real fixes, in the order you should offer them:
+Four real fixes, in the order you should offer them:
 
 | User says | Run | Why |
 |---|---|---|
 | "only tell me when you need me" | `audio-hooks hooks enable-only notification permission_request` | Fires only when the user must act. `notification`/`idle_prompt` is the genuine "Claude is waiting for you" signal |
 | "stop chiming while background work is running" | `audio-hooks set filters.stop.skip_if_background_tasks_running true` | v6.4. Reads the `background_tasks` array on the `Stop` payload and stays silent until nothing is still running. Keeps `stop` but kills the chime storm from teammates/subagents |
-| "I have several sessions open and they all chime" | `audio-hooks set playback_settings.debounce_ms 60000` | Blunt instrument — use only after the two above |
+| "stop chiming for every little command" | `audio-hooks set filters.posttooluse.min_duration_ms 30000` | v6.5. Only sound once a tool actually took that long. Reach for this before debounce — debounce suppresses by time window, so it cannot tell a burst of fast tools from one long build |
+| "I have several sessions open and they all chime" | `audio-hooks set playback_settings.debounce_ms 60000` | Blunt instrument — use only after the three above |
 
 **Per-variant control (v6.4)**
 
-Matcher-scoped events have independently switchable **variants**: `notification` has 8 (`notification_permission_prompt`, `notification_idle_prompt`, `notification_agent_completed`, …), `stop_failure` has 8, `session_start` and `session_end` have 4 each, `precompact`/`postcompact`/`setup` have 2 each — 30 in total. Before v6.4 they all shared their parent's single switch.
+Matcher-scoped events have independently switchable **variants**: `notification` has 16 (`notification_permission_prompt`, `notification_idle_prompt`, `notification_worker_permission_prompt`, …), `stop_failure` has 11, `session_start` has 5, `session_end` has 4, `precompact`/`postcompact`/`setup`/`directory_added` have 2 each — 44 in total. Before v6.4 they all shared their parent's single switch.
 
 | User says | Run |
 |---|---|
@@ -93,6 +94,8 @@ Matcher-scoped events have independently switchable **variants**: `notification`
 Precedence when both a variant and its parent are set: an explicit variant key wins outright; otherwise a parent set to `false` is a hard kill switch for all its variants. So to keep exactly one variant of a muted category, set that variant key explicitly — do not rely on the parent.
 
 `notification_agent_needs_input` and `notification_agent_completed` need Claude Code v2.1.198+ and ship **off**. They could not be observed firing during v6.4's pre-release capture (5 subagent completions produced none), and appear to belong to the push-notification path for background agents rather than local `Task` subagents. Do not present them to a user as a working "task finished" cue — recommend `notification`/`idle_prompt` or the `background_tasks` filter instead.
+
+If the complaint is really *"I miss it when I'm not looking at the terminal"* rather than *"it's too loud"*, the fix is a different **channel**, not fewer events — see **Desktop notifications, bells and window titles** below, or the webhook for a phone.
 
 **Check project status**
 
@@ -162,7 +165,7 @@ The status line displays real-time audio-hooks state and context window usage at
 
 After installing, the status line updates every 60 seconds and shows two lines:
 ```
-[Opus 4.8 (1M context)] | 🧠 high | ⚡ CC v2.1.193 | 📁 D:\…\claude-code-audio-hooks | 🔊 echook v6.2.0 | 6/39 Sounds | Webhook: off | Theme: Voice
+[Opus 4.8 (1M context)] | 🧠 high | ⚡ CC v2.1.193 | 📁 D:\…\claude-code-audio-hooks | 🔊 echook v6.5.0 | 3/39 Sounds | Webhook: off | Theme: Voice
 🌿 main  ████░░░░ API Quota: 60% · resets 2pm  ███████░ Weekly: 82% · resets Jul 4 9pm  █████░░░ Context: 65% (130K/200K) ⚠️ /compact  💲 $0.42 +156/-23
 ```
 The status line pins the key facts from Claude Code's **startup banner** so they stay visible after the banner scrolls off the top of the terminal: the model + reasoning **effort** (`🧠`), Claude Code's own **version** (`⚡ CC v…`, distinct from echook's `🔊 echook v…`), the **cwd**, the **5-hour API quota** and the headline **weekly (7-day) limit + reset date & time** (`Weekly: 82% · resets Jul 4 9pm` — the weekly reset is days out, so it shows the date; the always-soon 5-hour reset stays a bare time), and session **cost + diff** (`💲 $0.42 +156/-23`). The `📁` segment (`cwd`) is abbreviated (home → `~`, long paths shortened to `<root>…<last folder>`) so the user can tell at a glance which project the session is in.
@@ -251,6 +254,54 @@ Control how notifications are delivered — audio only, desktop notification onl
 | "make notifications more detailed" | `audio-hooks set notification_settings.detail_level verbose` |
 | "minimal notifications" | `audio-hooks set notification_settings.detail_level minimal` |
 | "only use desktop notification for the stop hook" | `audio-hooks set notification_settings.per_hook.stop notification_only` |
+
+**Desktop notifications, bells and window titles (v6.5) — for when the user is away from the screen**
+
+This is usually what someone means by *"notify me when it's done"* if they are not sitting in front of the terminal. Claude Code emits the escape sequence on echook's behalf, so it needs **no OS-specific dependency and works even though a hook has no controlling terminal** — the case where a plain `notify-send`/`osascript` hook silently does nothing.
+
+| User says | You run |
+|---|---|
+| "send me a desktop notification", "pop a toast when it needs me" | `audio-hooks set notification_settings.terminal_sequence.enabled true` |
+| "just ring the terminal bell" | `audio-hooks set notification_settings.terminal_sequence.enabled true` then `audio-hooks set notification_settings.terminal_sequence.style bell` |
+| "show it in the window title" | `... .style title` |
+| "use OSC 777 / my terminal wants 777" | `... .style osc777` |
+| "turn the desktop notifications off" | `audio-hooks set notification_settings.terminal_sequence.enabled false` |
+| "only toast when it's waiting for me" | `audio-hooks set notification_settings.terminal_sequence.hook_types '["notification"]'` |
+
+Styles: `osc9` (default — iTerm2, kitty, WezTerm, Ghostty), `osc777`, `title`, `bell`.
+
+**Claude Code only.** Cursor and Codex have no equivalent; the runner never emits there. If the user is on Cursor or Codex and wants an away-from-desk signal, point them at the **webhook** instead (`webhook set --url … --format ntfy` reaches a phone).
+
+**It is deliberately restricted to a safe subset of events.** Several events echook registers consume a hook's stdout JSON to change what Claude Code *does* — `MessageDisplay` replaces Claude's visible output, and `Elicitation`/`ElicitationResult` answer an MCP prompt with accept/decline/cancel on the user's behalf. Those are hard-excluded. If a user asks for a toast on one of them, explain why it is refused rather than trying to force it; there is no config that turns it on.
+
+**Per-subagent status line (v6.5)**
+
+A *second*, separate surface from the main status line: one rendered row per task in Claude Code's agent panel. With agent teams this is where most of the live state is.
+
+| User says | You run |
+|---|---|
+| "show status for each subagent", "add a status line to the agent panel" | `audio-hooks statusline subagent install` |
+| "is the subagent status line on?" | `audio-hooks statusline subagent show` |
+| "remove the per-agent status" | `audio-hooks statusline subagent uninstall` |
+
+Each row shows status icon · model · reasoning effort · context used · elapsed, and every field self-omits when absent:
+```
+▶ · opus-5 · 🧠high · ◔24% 48.0k/200.0k · ⏱3m05s
+✓ · haiku-4-5 · ◔1.2k
+```
+Tell the user to **restart Claude Code** (or start a session with subagents) before the rows appear. This is independent of the main status line — installing one does not install the other.
+
+**Only make a sound for slow tools (v6.5)**
+
+Reach for this when a user says *"stop chiming for every little command"* but still wants to know when a long build or test run finishes. It is a better answer than debounce, which suppresses by time window and so cannot tell a burst of fast tools from one genuinely long command.
+
+| User says | You run |
+|---|---|
+| "only tell me about commands that take a while" | `audio-hooks set filters.posttooluse.min_duration_ms 30000` |
+| "only sound for failures that took over 10s" | `audio-hooks set filters.posttoolusefailure.min_duration_ms 10000` |
+| "go back to sounding for everything" | `audio-hooks set filters.posttooluse.min_duration_ms 0` |
+
+`duration_ms` excludes permission-prompt and hook time, so the threshold measures real tool work. **Fails open:** Cursor and Codex do not report it, so the filter never silences those editors.
 
 **Playback settings**
 
@@ -471,8 +522,8 @@ audio-hooks status                         # full project state snapshot
 audio-hooks version                        # version + install detection
 audio-hooks diagnose                       # system check + warnings + errors
 
-audio-hooks hooks list                     # all 37 hooks
-audio-hooks hooks list --variants          # + 30 matcher variants
+audio-hooks hooks list                     # all 39 hooks
+audio-hooks hooks list --variants          # + 44 matcher variants
 audio-hooks hooks enable <name>            # turn one on
 audio-hooks hooks disable <name>           # turn one off
 audio-hooks hooks enable-only <a> <b>      # exclusive enable

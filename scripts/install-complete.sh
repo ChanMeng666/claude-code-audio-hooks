@@ -455,10 +455,27 @@ try:
         'ConfigChange': 'config_change',
         'InstructionsLoaded': 'instructions_loaded',
         'Elicitation': 'elicitation',
-        'ElicitationResult': 'elicitation_result'
+        'ElicitationResult': 'elicitation_result',
+        # v5.0 events — omitted here until v6.4.1, so a script install silently
+        # registered 20 of 28 while the plugin install registered all of them.
+        'PermissionDenied': 'permission_denied',
+        'CwdChanged': 'cwd_changed',
+        # v6.5 Claude Code events.
+        'DirectoryAdded': 'directory_added',
+        'WorktreeRemove': 'worktree_remove',
+        'FileChanged': 'file_changed',
+        'TaskCreated': 'task_created',
+        # v6.2 Claude Code events — same story.
+        'Setup': 'setup',
+        'UserPromptExpansion': 'user_prompt_expansion',
+        'PostToolBatch': 'post_tool_batch',
+        'MessageDisplay': 'message_display',
     }
+    # Kept in lock-step with plugins/audio-hooks/hooks/hooks.json by
+    # tests/test_legacy_scripts_contract.py — that test is the only thing
+    # standing between this dict and another silent 8-event gap.
 
-    hooks_with_matcher = ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest', 'SubagentStart', 'SubagentStop', 'Notification', 'ConfigChange', 'InstructionsLoaded', 'PreCompact', 'PostCompact', 'SessionStart', 'SessionEnd', 'StopFailure', 'Elicitation', 'ElicitationResult']
+    hooks_with_matcher = ['DirectoryAdded', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest', 'SubagentStart', 'SubagentStop', 'Notification', 'ConfigChange', 'InstructionsLoaded', 'PreCompact', 'PostCompact', 'SessionStart', 'SessionEnd', 'StopFailure', 'Elicitation', 'ElicitationResult']
 
     # Smart matchers: filter high-noise hooks to only fire for relevant tools
     smart_matchers = {

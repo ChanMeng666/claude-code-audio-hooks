@@ -75,6 +75,8 @@
 
     "_comment_cwd_changed": "v5.0: Plays when working directory changes - OPTIONAL (noisy)",
     "cwd_changed": false,
+    "directory_added": false,
+    "worktree_remove": false,
 
     "_comment_file_changed": "v5.0: Plays when a watched file changes on disk - OPTIONAL (configure file_changed.watch)",
     "file_changed": false,
@@ -134,7 +136,13 @@
     "_comment_detail": "Notification detail: 'minimal' (hook name only), 'standard' (tool + brief context), 'verbose' (full sanitized summary — code blocks and secrets auto-stripped)",
     "detail_level": "standard",
     "_comment_per_hook": "Per-hook mode overrides. Omit a hook to use the global mode above.",
-    "per_hook": {}
+    "per_hook": {},
+    "_comment_terminal_sequence": "v6.5. Ask Claude Code to emit an OSC escape on echook's behalf (desktop toast / window title / bell). Cross-platform, no dependencies, and works even when the hook has no controlling terminal. Claude Code only; Cursor and Codex have no equivalent. Off by default. style: osc9 (widest support) | osc777 | title | bell. hook_types narrows further; empty means every event echook considers safe to write stdout on.",
+    "terminal_sequence": {
+      "enabled": false,
+      "style": "osc9",
+      "hook_types": []
+    }
   },
 
   "filters": {
@@ -193,6 +201,8 @@
       "elicitation": "Input requested by MCP server",
       "permission_denied": "Permission denied by classifier",
       "cwd_changed": "Working directory changed",
+      "directory_added": "Directory added",
+      "worktree_remove": "Worktree removed",
       "file_changed": "Watched file changed",
       "task_created": "Task created",
       "setup": "Environment ready",

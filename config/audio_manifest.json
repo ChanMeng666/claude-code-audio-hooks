@@ -15,7 +15,6 @@
     "duration_seconds": 1.5,
     "prompt_influence": 0.3
   },
-
   "files": [
     {
       "filename": "permission-denied.mp3",
@@ -45,7 +44,6 @@
       "text": "Task created",
       "_v5": true
     },
-
     {
       "filename": "chime-permission-denied.mp3",
       "theme": "custom",
@@ -82,35 +80,1286 @@
       "prompt_influence": 0.4,
       "_v5": true
     },
-
-    { "filename": "setup-ready.mp3",            "theme": "default", "type": "voice", "text": "Environment ready",        "_v6_2": true },
-    { "filename": "prompt-expanded.mp3",        "theme": "default", "type": "voice", "text": "Command expanded",         "_v6_2": true },
-    { "filename": "batch-complete.mp3",         "theme": "default", "type": "voice", "text": "Tool batch finished",      "_v6_2": true },
-    { "filename": "message-display.mp3",        "theme": "default", "type": "voice", "text": "New message",              "_v6_2": true },
-    { "filename": "shell-starting.mp3",         "theme": "default", "type": "voice", "text": "Running a command",        "_v6_2": true },
-    { "filename": "shell-done.mp3",             "theme": "default", "type": "voice", "text": "Command finished",         "_v6_2": true },
-    { "filename": "mcp-starting.mp3",           "theme": "default", "type": "voice", "text": "Calling a tool",           "_v6_2": true },
-    { "filename": "mcp-done.mp3",               "theme": "default", "type": "voice", "text": "Tool finished",            "_v6_2": true },
-    { "filename": "file-read.mp3",              "theme": "default", "type": "voice", "text": "Reading a file",           "_v6_2": true },
-    { "filename": "agent-response.mp3",         "theme": "default", "type": "voice", "text": "Response ready",           "_v6_2": true },
-    { "filename": "thinking-done.mp3",          "theme": "default", "type": "voice", "text": "Finished thinking",        "_v6_2": true },
-    { "filename": "workspace-open.mp3",         "theme": "default", "type": "voice", "text": "Workspace opened",         "_v6_2": true },
-    { "filename": "tab-edit.mp3",               "theme": "default", "type": "voice", "text": "Inline edit applied",      "_v6_2": true },
-
-    { "filename": "chime-setup-ready.mp3",      "theme": "custom", "type": "sound_effect", "text": "bright modern UI ready chime, warm two-tone ascending bell, welcoming, 1 second",                   "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-prompt-expanded.mp3",  "theme": "custom", "type": "sound_effect", "text": "soft modern UI expand tap, quick light unfolding pop, subtle, 1 second",                              "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-batch-complete.mp3",   "theme": "custom", "type": "sound_effect", "text": "modern UI batch completion, two quick ascending ticks then a soft bell, brisk, 1 second",            "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-message-display.mp3",  "theme": "custom", "type": "sound_effect", "text": "very subtle modern UI message pop, single soft tick, minimal, under 1 second",                     "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-shell-starting.mp3",   "theme": "custom", "type": "sound_effect", "text": "modern terminal UI prompt, low soft single beep, neutral, under 1 second",                          "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-shell-done.mp3",        "theme": "custom", "type": "sound_effect", "text": "modern terminal UI completion, low-to-mid two-tone soft tick, neutral, 1 second",                  "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-mcp-starting.mp3",     "theme": "custom", "type": "sound_effect", "text": "modern UI network call start, bright single high ping, digital, under 1 second",                    "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-mcp-done.mp3",         "theme": "custom", "type": "sound_effect", "text": "modern UI network call done, bright two-tone descending ping, digital, 1 second",                  "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-file-read.mp3",        "theme": "custom", "type": "sound_effect", "text": "soft modern UI page flip, gentle paper-like swish, brief, under 1 second",                          "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-agent-response.mp3",   "theme": "custom", "type": "sound_effect", "text": "gentle modern UI reply chime, single warm mid bell, pleasant, 1 second",                          "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-thinking-done.mp3",    "theme": "custom", "type": "sound_effect", "text": "soft modern UI thought-complete chime, light ascending shimmer, calm, 1 second",                  "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-workspace-open.mp3",   "theme": "custom", "type": "sound_effect", "text": "modern UI app open chime, warm rising three-note arpeggio, welcoming, 1 second",                "duration_seconds": 1.2, "prompt_influence": 0.4, "_v6_2": true },
-    { "filename": "chime-tab-edit.mp3",         "theme": "custom", "type": "sound_effect", "text": "very subtle modern UI keystroke tick, single faint click, minimal, under 1 second",               "duration_seconds": 1.0, "prompt_influence": 0.4, "_v6_2": true }
+    {
+      "filename": "setup-ready.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Environment ready",
+      "_v6_2": true
+    },
+    {
+      "filename": "prompt-expanded.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Command expanded",
+      "_v6_2": true
+    },
+    {
+      "filename": "batch-complete.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Tool batch finished",
+      "_v6_2": true
+    },
+    {
+      "filename": "message-display.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "New message",
+      "_v6_2": true
+    },
+    {
+      "filename": "shell-starting.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Running a command",
+      "_v6_2": true
+    },
+    {
+      "filename": "shell-done.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Command finished",
+      "_v6_2": true
+    },
+    {
+      "filename": "mcp-starting.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Calling a tool",
+      "_v6_2": true
+    },
+    {
+      "filename": "mcp-done.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Tool finished",
+      "_v6_2": true
+    },
+    {
+      "filename": "file-read.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Reading a file",
+      "_v6_2": true
+    },
+    {
+      "filename": "agent-response.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Response ready",
+      "_v6_2": true
+    },
+    {
+      "filename": "thinking-done.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Finished thinking",
+      "_v6_2": true
+    },
+    {
+      "filename": "workspace-open.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Workspace opened",
+      "_v6_2": true
+    },
+    {
+      "filename": "tab-edit.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Inline edit applied",
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-setup-ready.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "bright modern UI ready chime, warm two-tone ascending bell, welcoming, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-prompt-expanded.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft modern UI expand tap, quick light unfolding pop, subtle, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-batch-complete.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern UI batch completion, two quick ascending ticks then a soft bell, brisk, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-message-display.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "very subtle modern UI message pop, single soft tick, minimal, under 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-shell-starting.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern terminal UI prompt, low soft single beep, neutral, under 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-shell-done.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern terminal UI completion, low-to-mid two-tone soft tick, neutral, 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-mcp-starting.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern UI network call start, bright single high ping, digital, under 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-mcp-done.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern UI network call done, bright two-tone descending ping, digital, 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-file-read.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft modern UI page flip, gentle paper-like swish, brief, under 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-agent-response.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "gentle modern UI reply chime, single warm mid bell, pleasant, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-thinking-done.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft modern UI thought-complete chime, light ascending shimmer, calm, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-workspace-open.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern UI app open chime, warm rising three-note arpeggio, welcoming, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "chime-tab-edit.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "very subtle modern UI keystroke tick, single faint click, minimal, under 1 second",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.4,
+      "_v6_2": true
+    },
+    {
+      "filename": "directory-added.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Directory added",
+      "_v651": true
+    },
+    {
+      "filename": "chime-directory-added.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "bright marimba double note rising, wooden warm tone, library-add feel, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "worktree-removed.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Worktree removed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-worktree-removed.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft muted wood block single hit with short decay, neutral closing tone, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "pre-compact.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Compacting soon",
+      "_v651": true
+    },
+    {
+      "filename": "chime-pre-compact.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "gentle synth swell rising then pausing, anticipatory, airy, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-permission-prompt.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Authorization needed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-permission-prompt.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "clear two-tone bell asking a question, upward inflection, polite, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-idle-prompt.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Waiting for you",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-idle-prompt.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft rounded triangle chime, single gentle strike, patient, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-auth-success.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Signed in",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-auth-success.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "warm ascending three note glockenspiel, confirming, bright, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-elicitation-dialog.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Dialog opened",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-elicitation-dialog.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "light glassy ping opening upward, curious, thin, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-elicitation-complete.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Dialog complete",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-elicitation-complete.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft glassy ping resolving downward, settled, thin, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-elicitation-response.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Answer received",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-elicitation-response.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "quick double glass tap, even pitch, acknowledging, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-elicitation-url.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Link opened",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-elicitation-url.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "airy synth whoosh upward with sparkle tail, portal opening, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-agent-needs-input.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Agent needs input",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-agent-needs-input.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "insistent double bell, mid pitch, slightly urgent, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-agent-completed.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Agent finished",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-agent-completed.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "descending three note music box, gentle completion, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-worker-permission.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Subagent needs authorization",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-worker-permission.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "hollow wooden knock twice then a soft bell, asking from a distance, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-push.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Push notification",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-push.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "modern phone style soft pop with short reverb, single, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-computer-use-enter.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Computer use started",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-computer-use-enter.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "retro digital blip ascending, robotic, crisp, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-computer-use-exit.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Computer use finished",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-computer-use-exit.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "retro digital blip descending, robotic, crisp, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-quota-resumed.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Quota reset, resuming",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-quota-resumed.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "hopeful rising synth arpeggio, power restored feel, bright, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-quota-stale.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Auto resume expired",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-quota-stale.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "dull descending buzz, deflating, muted, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notif-quota-disabled.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Auto resume disabled",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notif-quota-disabled.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "short flat low tone, switch turning off, dry, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-rate-limit.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Rate limited",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-rate-limit.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "three descending warning tones, hitting a wall, firm, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-auth.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Authentication failed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-auth.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "sharp low buzz twice, access denied, harsh, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-oauth-org.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Organization not allowed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-oauth-org.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "low gated thud with metallic edge, barrier, blunt, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-account-hold.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Account on hold",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-account-hold.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "sustained low hum that stops abruptly, suspended, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-billing.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Billing error",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-billing.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "cash register style clunk gone wrong, dull metallic, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-overloaded.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Servers overloaded",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-overloaded.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "wobbling strained tone, struggling under load, unstable, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-invalid-request.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Invalid request",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-invalid-request.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "short dry rejection click with flat tone, terse, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-model-not-found.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Model unavailable",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-model-not-found.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "empty hollow ping with long decay, absence, thin, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-server-error.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Server error",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-server-error.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "glitchy digital stutter burst, malfunction, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-unknown.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Unknown error",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-unknown.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "ambiguous muted tone with slight detune, uncertain, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "fail-max-tokens.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Output limit reached",
+      "_v651": true
+    },
+    {
+      "filename": "chime-fail-max-tokens.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "rising tone cut off abruptly mid rise, truncated, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-startup.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "New session started",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-startup.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "clean ascending two note startup chime, fresh, bright, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-resumed.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session resumed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-resumed.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "warm mid pitch single bell with soft attack, picking back up, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-cleared.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Context cleared",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-cleared.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "quick airy sweep upward like wiping clean, brushed, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-after-compact.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Resumed after compacting",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-after-compact.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "compressed descending then settling tone, condensed, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-forked.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session forked",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-forked.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "single note splitting into two diverging pitches, branching, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "end-clear.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session cleared",
+      "_v651": true
+    },
+    {
+      "filename": "chime-end-clear.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft downward brush ending, tidy, short, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "end-resume.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session handed off",
+      "_v651": true
+    },
+    {
+      "filename": "chime-end-resume.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "mid tone fading out gently, paused not finished, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "end-logout.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Logged out",
+      "_v651": true
+    },
+    {
+      "filename": "chime-end-logout.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "two descending muted notes, door closing, final, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "end-exit.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session exited",
+      "_v651": true
+    },
+    {
+      "filename": "chime-end-exit.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "single low soft thud with short tail, done, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "precompact-manual.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Compacting now",
+      "_v651": true
+    },
+    {
+      "filename": "chime-precompact-manual.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "deliberate downward two note press, manual action, firm, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "precompact-auto.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Auto compacting",
+      "_v651": true
+    },
+    {
+      "filename": "chime-precompact-auto.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "smooth automatic descending glide, hands off, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "postcompact-manual.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Manual compaction finished",
+      "_v651": true
+    },
+    {
+      "filename": "chime-postcompact-manual.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "clean resolving chord, tidy and finished, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "postcompact-auto.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Auto compact finished",
+      "_v651": true
+    },
+    {
+      "filename": "chime-postcompact-auto.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft resolving chord slightly muted, quiet completion, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "setup-init.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Setup started",
+      "_v651": true
+    },
+    {
+      "filename": "chime-setup-init.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "bright unfolding arpeggio upward, building, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "setup-maintenance.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Maintenance running",
+      "_v651": true
+    },
+    {
+      "filename": "chime-setup-maintenance.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "steady mechanical tick tick with soft tone, servicing, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "dir-added-slash.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Directory added by command",
+      "_v651": true
+    },
+    {
+      "filename": "chime-dir-added-slash.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "crisp marimba double note, deliberate add, wooden, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "dir-added-repo-root.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Repository root added",
+      "_v651": true
+    },
+    {
+      "filename": "chime-dir-added-repo-root.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "deeper marimba double note with wider interval, structural, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "config-change.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Configuration changed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-config-change.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "small mechanical switch flip with tone, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "elicitation.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Elicitation dialog",
+      "_v651": true
+    },
+    {
+      "filename": "chime-elicitation.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "light glassy ping opening, curious, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "elicitation-result.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Elicitation result",
+      "_v651": true
+    },
+    {
+      "filename": "chime-elicitation-result.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "glassy ping resolving, settled, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "instructions-loaded.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Instructions loaded",
+      "_v651": true
+    },
+    {
+      "filename": "chime-instructions-loaded.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "gentle ascending triad, informative, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notification-info.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Notice",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notification-info.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "neutral soft chime, single, informative, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "notification-urgent.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Attention needed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-notification-urgent.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "urgent double bell, bright and insistent, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "permission-request.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Permission requested",
+      "_v651": true
+    },
+    {
+      "filename": "chime-permission-request.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "questioning upward two tone bell, polite, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "post-compact.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Compacted",
+      "_v651": true
+    },
+    {
+      "filename": "chime-post-compact.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "resolving chord after compression, tidy, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "prompt-received.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Prompt received",
+      "_v651": true
+    },
+    {
+      "filename": "chime-prompt-received.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft single tap acknowledging, 0.6 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-end.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session ended",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-end.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "gentle descending two notes, closing, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "session-start.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Session started",
+      "_v651": true
+    },
+    {
+      "filename": "chime-session-start.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "bright ascending two notes, opening, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "stop-failure.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Turn failed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-stop-failure.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "low descending error tone, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "subagent-complete.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Subagent finished",
+      "_v651": true
+    },
+    {
+      "filename": "chime-subagent-complete.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "descending music box notes, gentle completion, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "subagent-start.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Subagent started",
+      "_v651": true
+    },
+    {
+      "filename": "chime-subagent-start.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "ascending music box notes, gentle start, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "task-complete.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Task complete",
+      "_v651": true
+    },
+    {
+      "filename": "chime-task-complete.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "satisfying resolving two note chime, warm, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "task-progress.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Step done",
+      "_v651": true
+    },
+    {
+      "filename": "chime-task-progress.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft neutral tick with tone, 0.6 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "task-starting.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Starting",
+      "_v651": true
+    },
+    {
+      "filename": "chime-task-starting.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "short rising tick, 0.6 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "team-task-done.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Team task done",
+      "_v651": true
+    },
+    {
+      "filename": "chime-team-task-done.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "warm chord resolving, collaborative, 1.2 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "teammate-idle.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Teammate idle",
+      "_v651": true
+    },
+    {
+      "filename": "chime-teammate-idle.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "soft questioning tone, waiting, 1 second",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    },
+    {
+      "filename": "tool-failed.mp3",
+      "theme": "default",
+      "type": "voice",
+      "text": "Tool failed",
+      "_v651": true
+    },
+    {
+      "filename": "chime-tool-failed.mp3",
+      "theme": "custom",
+      "type": "sound_effect",
+      "text": "short harsh buzz, 0.8 seconds",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.4,
+      "_v651": true
+    }
   ],
-
   "_legacy_files_note": "The 22 pre-v5.0 audio files (notification-urgent.mp3, task-complete.mp3, etc.) were generated before this manifest existed and are NOT regenerated by default. To rebuild any of them, add an entry here matching the filename and run `python scripts/generate-audio.py --only <filename>`."
 }

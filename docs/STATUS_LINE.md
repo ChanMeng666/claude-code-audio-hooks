@@ -3,7 +3,7 @@
 > Authoritative orientation for echook's **second track**, the status line. The
 > *live* source of truth is always the CLI: `audio-hooks statusline segments`
 > (Claude Code catalog) and `audio-hooks statusline codex show` (Codex state).
-> This page explains the model behind those commands. Current as of **v6.3.3**.
+> This page explains the model behind those commands. Current as of **v6.4.1**.
 
 ## The one thing to understand first
 
@@ -13,8 +13,8 @@ echook treats them differently:
 | Editor | Mechanism | What echook does |
 |---|---|---|
 | **Claude Code** | Runs a **command script** and prints whatever it returns (`bin/audio-hooks-statusline.py`, registered in `~/.claude/settings.json`). | **Renders** the whole line. echook can show any segment it wants. |
-| **Codex** | Renders only a **fixed list of built-in item IDs** under `[tui].status_line` / `[tui].terminal_title` in `~/.codex/config.toml`. No command/script hook (open feature request [openai/codex#20140](https://github.com/openai/codex/issues/20140)). | **Curates** that fixed list. echook *cannot* render custom text or new segments in Codex — it can only pick/order/de-duplicate the built-in IDs so the line stops truncating. |
-| **Cursor** | No status-line surface echook targets. | — |
+| **Codex** | Renders only a **fixed list of built-in item IDs** under `[tui].status_line` / `[tui].terminal_title` in `~/.codex/config.toml`. No command/script hook (open feature request [openai/codex#17827](https://github.com/openai/codex/issues/17827)). | **Curates** that fixed list. echook *cannot* render custom text or new segments in Codex — it can only pick/order/de-duplicate the built-in IDs so the line stops truncating. |
+| **Cursor** | IDE: none. CLI (`cursor-agent`): a custom `statusLine` command exists upstream but is unverified — see below. | — |
 
 If you remember nothing else: **Claude Code = render (rich, 29 segments); Codex = curate (fixed menu).**
 
@@ -122,6 +122,45 @@ audio-hooks set statusline_settings.max_width 0     # back to auto-detect
 
 ---
 
+## Subagent status line (Claude Code, v6.5)
+
+`subagentStatusLine` is a **second, separate** settings key from `statusLine`.
+It renders one row per task in the agent panel rather than one line for the
+session, so with agent teams it is where most of the live state now is.
+
+```
+audio-hooks statusline subagent show        # is it registered?
+audio-hooks statusline subagent install     # register in ~/.claude/settings.json
+audio-hooks statusline subagent uninstall   # remove
+```
+
+**The output contract is different from the main status line, and getting it
+wrong produces silence rather than an error.** Claude Code pipes one JSON
+object on stdin and expects **NDJSON** back — one object per line:
+
+| Direction | Shape |
+|---|---|
+| stdin | `{"columns": <int>, "tasks": [{"id", "name", "type", "status", "description", "label", "startTime", "model", "effort", "contextWindowSize", "tokenCount", "tokenSamples", "cwd"}, …], …session fields}` |
+| stdout | `{"id": "<the task's id>", "content": "<rendered row>"}`, one per line |
+
+Claude Code keys the result by `id`, so a row whose `id` does not match a task
+is dropped. A line that is not JSON is logged as *"subagentStatusLine emitted
+non-JSON line"*; one that parses but lacks `id`/`content` is *"emitted invalid
+schema"*. The timeout is **5 s**, so the renderer does no I/O beyond stdin.
+
+echook's row is deliberately compact — one panel column, not two full lines:
+
+```
+▶ · opus-5 · 🧠high · ◔24% 48.0k/200.0k · ⏱3m05s
+✓ · haiku-4-5 · ◔1.2k
+```
+
+status icon · model · reasoning effort · context used (with window size) ·
+elapsed. Every field is data-gated, so a task that reports only a token count
+renders only that.
+
+---
+
 ## Codex status line (curation only)
 
 Codex accepts only fixed built-in item IDs — echook **curates**, it does **not**
@@ -163,6 +202,44 @@ is parse- and round-trip-validated before writing. Restart Codex (or run
 > sparse-looking bar usually means a fresh session / non-repo cwd, not missing
 > configuration. Use `--preset full` for the maximum number of item IDs; some
 > still only fill in once their data exists.
+
+---
+
+## Cursor: investigated, not implemented
+
+**The Cursor IDE has no third-party-writable status bar.** Checked directly
+against the installed build (`resources/app/out/vs/workbench/workbench.desktop.main.js`):
+every occurrence of `statusLine` is an *internal transcript row kind*
+(`kind:"statusLine"`, `rowId:` `status-line:${id}`) used to render rows inside
+the agent transcript. There is no settings key, no command contribution, and no
+schema accepting a user command. The same bundle *does* contain the hook event
+names (`beforeShellExecution`, `afterFileEdit`, …), so this is a genuine absence
+rather than a failed search. The upstream request to expose a status-bar API to
+extensions is still open.
+
+**`cursor-agent` (the CLI) is a different story, and remains unverified.**
+Cursor's CLI changelog describes a custom `statusLine` — *"Point `statusLine` at
+your own command and render its output (with live token usage data) in the
+prompt footer"* (April 2026), later *"a custom `statusLine` command keeps its
+throttle during streaming updates"* (August 2026) — and the mechanism is
+explicitly modelled on Claude Code's convention (`type: "command"`, a spawned
+script, JSON on stdin), which would make echook's existing 29-segment renderer
+largely reusable.
+
+It is not implemented because **`cursor-agent` is not installable on the machine
+this was investigated from** (only the IDE is present), so the settings-file
+location and the exact stdin schema could not be confirmed first-hand. Given
+this project's rule — verify an interface before shipping against it — guessing
+here would produce either silence or a wrong-shaped payload, with no diagnostic
+either way. A known caveat is already on record: a custom `statusLine` currently
+*replaces* the native CLI footer rather than composing with it, so the
+Auto-review indicator is lost.
+
+**To pick this up:** install `cursor-agent`, run `/statusline`, capture the
+stdin payload with a shim that appends stdin to a file and exits 0, and compare
+it against Claude Code's schema in the table above. If it matches, wiring it is
+mostly a matter of pointing a second registration at
+`bin/audio-hooks-statusline.py`.
 
 ---
 

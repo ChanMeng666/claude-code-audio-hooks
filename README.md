@@ -8,7 +8,7 @@
 You configure it by talking to your agent — every setting is one sentence, not a JSON edit.<br/>
 Hear when your agent finishes, needs permission, or hits a rate limit — plus an optional context-usage status line.
 
-<sub>**v6.4.0** — 37 hook events and 30 matcher variants across all three editors · 2 audio themes · webhooks · TTS · rate-limit alerts · status line. Renamed `claude-code-audio-hooks` → **echook** (Echo + Hook) in 5.2.1; existing installs keep working. Full history in the [CHANGELOG](./CHANGELOG.md).</sub>
+<sub>**v6.5.0** — 39 hook events and 44 matcher variants across all three editors · 2 audio themes · webhooks · TTS · desktop toasts · rate-limit alerts · status line. Renamed `claude-code-audio-hooks` → **echook** (Echo + Hook) in 5.2.1; existing installs keep working. Full history in the [CHANGELOG](./CHANGELOG.md).</sub>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Latest Release](https://img.shields.io/github/v/release/ChanMeng666/echook?label=release&color=blue&sort=semver)](https://github.com/ChanMeng666/echook/releases/latest)
@@ -65,9 +65,11 @@ https://github.com/user-attachments/assets/804dff1e-56d8-49b2-b0c0-6706f3eeccd4
 
 ## What's New
 
-**Latest: v6.4.0 — per-variant toggles + the full `Notification` matcher set.** Each of the 30 matcher variants is now switchable on its own (before, every variant of an event shared one flag), the four `Notification` matchers echook was missing are registered, and `filters.stop.skip_if_background_tasks_running` keeps the turn-end sound quiet while subagents are still running. All new variants ship opt-in.
+**Latest: v6.5.0 — desktop notifications without a terminal, and a status line for every subagent.** `terminalSequence` asks Claude Code to emit the OSC escape itself, so you get a desktop toast, window title or bell on any platform with no dependencies — and it works even when the hook has no controlling terminal, which is the whole point when you are away from the screen. `subagentStatusLine` claims Claude Code's second status-line surface: one row per subagent in the agent panel, showing model, effort, context use and elapsed time. Plus the eight `Notification` matchers echook was still missing (including `worker_permission_prompt` and the `quota_auto_resume_*` trio), two new events, and `filters.<hook>.min_duration_ms` so only genuinely slow tools make a sound. Everything new ships opt-in.
 
-Earlier highlights: **v6.3.4** removed `worktree_create` / `worktree_remove` — they hijacked Claude Code's own provider hook and broke worktree isolation — taking the event count from 39 to **37** · **v6.3.0** grew the status line to 29 segments · **v6.2.0** added 13 lifecycle events, including Cursor's **granular per-tool-type events** so shell commands, MCP calls, and file reads each get a *distinct* sound.
+**v6.4.1 — an upstream-drift release.** Forked sessions had gone completely silent (Claude Code 2.1.213 changed `SessionStart` to report `fork` where it used to report `resume`), five `stop_failure` toggles turned out to do nothing, `manifest` overstated Claude Code's supported events, and `uninstall.sh` left 19 orphaned registrations behind. All four were silent — nothing failed, nothing logged.
+
+Earlier highlights: **v6.3.4** removed `worktree_create` / `worktree_remove` — they hijacked Claude Code's own provider hook and broke worktree isolation — taking the event count from 39 to 37. (v6.5.0 restored `worktree_remove`: only `WorktreeCreate` is a provider hook, so that rollback cut twice as much as it needed to.) · **v6.3.0** grew the status line to 29 segments · **v6.2.0** added 13 lifecycle events, including Cursor's **granular per-tool-type events** so shell commands, MCP calls, and file reads each get a *distinct* sound.
 
 📜 **Full version history → [CHANGELOG.md](./CHANGELOG.md)** · [GitHub Releases](https://github.com/ChanMeng666/echook/releases)
 
@@ -77,7 +79,7 @@ Earlier highlights: **v6.3.4** removed `worktree_create` / `worktree_remove` —
 
 echook does exactly two things: **(1)** tells you *what just happened* in your AI session when you're not watching the window — a sound at your desk, a spoken summary when you're away, a desktop toast or webhook when you're in another app — and **(2)** a **status line** that keeps the facts you need pinned to the bottom of the terminal.
 
-> **If you're comparing.** Claude Code can already ring the terminal bell, pop a desktop notification in Ghostty/Kitty/iTerm2, and push to your phone, and Anthropic publishes a four-line `afplay` hook you can paste into `settings.json`. **If one sound for everything is enough, that is the right answer and it costs nothing.** Others cover this ground too: [peon-ping](https://github.com/PeonPing/peon-ping) supports far more harnesses and groups events into 7 sound categories; [claudio](https://github.com/ctoth/claudio) does Claude Code + Codex audio; [anotifier](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor) does desktop/phone notifications for Claude Code, Codex, Gemini and Cursor; and Cursor 3.2.16+ executes Claude Code hooks natively. echook's difference is *which* of 37 events you hear, per-event on all three editors, configured by talking to your agent rather than by editing JSON.
+> **If you're comparing.** Claude Code can already ring the terminal bell, pop a desktop notification in Ghostty/Kitty/iTerm2, and push to your phone, and Anthropic publishes a four-line `afplay` hook you can paste into `settings.json`. **If one sound for everything is enough, that is the right answer and it costs nothing.** Others cover this ground too: [peon-ping](https://github.com/PeonPing/peon-ping) supports far more harnesses and groups events into 7 sound categories; [claudio](https://github.com/ctoth/claudio) does Claude Code + Codex audio; [anotifier](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor) does desktop/phone notifications for Claude Code, Codex, Gemini and Cursor; and Cursor 3.2.16+ executes Claude Code hooks natively. echook's difference is *which* of 39 events you hear, per-event on all three editors, configured by talking to your agent rather than by editing JSON.
 
 ### 🔔 Audio & out-of-band notifications
 
@@ -136,36 +138,38 @@ Most richer segments self-omit when Claude Code doesn't supply their data, so a 
 
 | Feature | What it does |
 |---|---|
-| **37 hook events · 30 matcher variants** | Across Claude Code, Cursor & Codex — session start, tool use, permission requests, rate-limit warnings, and Cursor's granular shell/MCP/file events. The three editors document 63 events between them; echook maps 37, each to its own sound. 3 on by default; toggle any in plain English. |
+| **39 hook events · 44 matcher variants** | Across Claude Code, Cursor & Codex — session start, tool use, permission requests, rate-limit warnings, and Cursor's granular shell/MCP/file events. The three editors document 63 events between them; echook maps 39, each to its own sound. 3 on by default; toggle any in plain English. |
 | **2 audio themes** | `default` = ElevenLabs **Jessica** voice (*"Task completed"*) · `custom` = modern UI chimes. Say *"switch to chimes"*. |
 | **Rate-limit alerts** | One-shot warning at 80% / 95% of your 5-hour or 7-day quota — warned once per threshold, never spammed. |
 | **Webhooks** | Versioned `audio-hooks.webhook.v1` payload, fire-and-forget, never blocks a hook. |
 
 <details>
-<summary><kbd>Full hook events table (37 events, 30 matcher variants)</kbd></summary>
+<summary><kbd>Full hook events table (39 events, 44 matcher variants)</kbd></summary>
 <br>
 
 | Hook | Default | Audio file | Native matchers |
 |---|:-:|---|---|
-| `notification` | on | notification-urgent.mp3 | `permission_prompt` / `idle_prompt` / `auth_success` / `elicitation_dialog` / `elicitation_complete` / `elicitation_response` / `agent_needs_input` / `agent_completed` (last four v6.4, off by default) |
+| `notification` | on | notification-urgent.mp3 | all 16 `notification_type` values — `permission_prompt` / `idle_prompt` / `auth_success` / `elicitation_dialog` / `elicitation_complete` / `elicitation_response` / `agent_needs_input` / `agent_completed` / `elicitation_url_dialog` / `worker_permission_prompt` / `push_notification` / `computer_use_enter` / `computer_use_exit` / `quota_auto_resume_fired` / `quota_auto_resume_stale` / `quota_auto_resume_disabled` (everything after `elicitation_dialog` is off by default) |
 | `stop` | on | task-complete.mp3 | |
 | `subagent_stop` | | subagent-complete.mp3 | agent type |
 | `permission_request` | on | permission-request.mp3 | tool name |
 | `permission_denied` | | permission-denied.mp3 | |
 | `task_created` | | task-created.mp3 | |
 | `task_completed` | | team-task-done.mp3 | |
-| `session_start` | | session-start.mp3 | `startup` / `resume` / `clear` / `compact` |
+| `session_start` | | session-start.mp3 | `startup` / `resume` / `clear` / `compact` / `fork` (v6.4.1) |
 | `session_end` | | session-end.mp3 | `clear` / `resume` / `logout` / `prompt_input_exit` |
 | `pretooluse` / `posttooluse` | | task-starting.mp3 / task-progress.mp3 | tool name |
 | `posttoolusefailure` | | tool-failed.mp3 | tool name |
 | `userpromptsubmit` | | prompt-received.mp3 | |
 | `subagent_start` | | subagent-start.mp3 | agent type |
-| `precompact` / `postcompact` | | notification-info.mp3 / post-compact.mp3 | `manual` / `auto` |
-| `stop_failure` | | stop-failure.mp3 | `rate_limit` / `authentication_failed` / `billing_error` / `server_error` / `unknown` |
+| `precompact` / `postcompact` | | pre-compact.mp3 / post-compact.mp3 | `manual` / `auto` — each variant has its own sound |
+| `stop_failure` | | stop-failure.mp3 | all 11 upstream error types — `rate_limit` / `authentication_failed` / `oauth_org_not_allowed` / `account_on_hold` / `billing_error` / `overloaded` / `invalid_request` / `model_not_found` / `server_error` / `max_output_tokens` / `unknown` |
 | `teammate_idle` | | teammate-idle.mp3 | |
 | `config_change` · `instructions_loaded` | | config-change.mp3 · instructions-loaded.mp3 | |
 | `elicitation` / `elicitation_result` | | elicitation.mp3 / elicitation-result.mp3 | |
 | `cwd_changed` · `file_changed` | | cwd-changed.mp3 · file-changed.mp3 | literal filenames |
+| `directory_added` | | directory-added.mp3 | `slash_command` / `register_repo_root` — a new root joined the session via `/add-dir` (v6.5) |
+| `worktree_remove` | | worktree-removed.mp3 | a git worktree was removed (v6.5). Safe to sound on — unlike `WorktreeCreate` it is not a provider hook |
 | `setup` (v6.2, Claude Code) | | setup-ready.mp3 | `init` / `maintenance` |
 | `user_prompt_expansion` · `post_tool_batch` · `message_display` (v6.2) | | (per event) | |
 | `shell_before` / `shell_after` (v6.2, Cursor) | | shell-starting.mp3 / shell-done.mp3 | |
@@ -198,7 +202,7 @@ flowchart TB
     CXP --> CLI
     CXN --> CLI
 
-    CLI --> OUT["37 hook events · 30 variants · 2 themes · webhooks<br/>TTS · rate-limit alerts · status line"]
+    CLI --> OUT["39 hook events · 44 variants · 2 themes · webhooks<br/>TTS · rate-limit alerts · status line"]
 
     style REPO fill:#4A90E2,color:#fff
     style CLI fill:#7ED321,color:#000
