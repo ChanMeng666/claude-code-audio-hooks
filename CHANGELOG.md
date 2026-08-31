@@ -167,7 +167,8 @@ diagnostic that could not see either.
   It is close to working upstream: the field survives Claude Code's own schema
   validation and rides all the way into the async-response attachment, where the
   renderer reads only `systemMessage` and `hookSpecificOutput.additionalContext`
-  and drops it. That reads as an oversight, not a decision.
+  and drops it. That reads as an oversight, not a decision — filed upstream as
+  [anthropics/claude-code#90997](https://github.com/anthropics/claude-code/issues/90997).
 
   The feature was off by default, so nothing regressed; anyone who turned it on
   got silence and no error. `diagnose` now reports `TERMINAL_SEQUENCE_INERT` and

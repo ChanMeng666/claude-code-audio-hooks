@@ -178,8 +178,13 @@ renderer reads only two fields:
 
 The field is carried the whole way and dropped at the last step. That makes this
 an upstream oversight, not a deliberate design: a single `jie(o,d)` inside
-`DYn`'s map would make async `terminalSequence` work. An issue is drafted but
-**not filed** as of 6.5.1.
+`DYn`'s map would make async `terminalSequence` work. Filed upstream as
+[anthropics/claude-code#90997](https://github.com/anthropics/claude-code/issues/90997)
+with the A/B above as the repro; watch it before investing in the workaround
+below. (Neighbouring prior art: #58858 added `terminalSequence` to the reference
+but says nothing about `async`; #24794, closed not-planned, is a different
+defect in the same line-oriented async-stdout parser, which is still
+line-oriented in 2.1.251.)
 
 **What a backgrounded hook can still deliver:** `systemMessage`,
 `hookSpecificOutput.additionalContext`, `metrics`, and — with `asyncRewake` —
