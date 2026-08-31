@@ -41,7 +41,7 @@ from invoker import detect_invoker, get_invoker as _get_invoker, strip_invoker_a
 
 # Version used for auto-sync: when the installed copy in ~/.claude/hooks/
 # detects a newer version in the project directory, it self-updates.
-HOOK_RUNNER_VERSION = "6.5.0"
+HOOK_RUNNER_VERSION = "6.5.1"
 
 # =============================================================================
 # STRUCTURED LOGGING (NDJSON)
@@ -1804,9 +1804,304 @@ def get_notification_context(hook_type: str, stdin_data: dict, detail_level: str
 # =============================================================================
 
 def _escape_notification_string(s: str) -> str:
-    """Escape a string for safe use in notification commands."""
+    """Escape a string for safe use in an osascript literal.
+
+    macOS only. PowerShell does not treat ``\\`` as an escape character, so
+    using this on a PowerShell command produces a script that fails to parse
+    the moment the body contains a quote — use escape_powershell_string()
+    there instead (v6.5.1 fix).
+    """
     # Remove characters that could cause shell/osascript injection
     return s.replace('"', '\\"').replace("'", "\\'").replace('`', '').replace('$', '')
+
+
+# Windows toast backends, in preference order. Probed once and cached: the
+# probe costs a synchronous PowerShell launch, which a hook must not pay on
+# every event.
+_WINDOWS_BACKENDS: Tuple[str, ...] = ("winrt", "burnttoast", "notifyicon")
+_NOTIFY_BACKEND_FILE = "notify_backend"
+_NOTIFY_BACKEND_TTL_SEC = 7 * 24 * 3600  # re-probe weekly; OS upgrades change what works
+
+# Wall-clock ceiling for the whole probe chain. Every handler in
+# plugins/audio-hooks/hooks/hooks.json is registered with "timeout": 10, and
+# Windows kills an async hook's process tree (docs/EVENT_BEHAVIOR_NOTES.md), so
+# a chain that overran would be reaped mid-flight. The budget stays under that
+# so the probe always survives long enough to persist its verdict.
+_NOTIFY_PROBE_BUDGET_SEC = 8.0
+
+# Per-backend timeouts. Generous against measured cost (a warm WinRT toast and
+# the module query each resolve in ~0.3 s here) but they must *sum* to less than
+# the budget, or a backend late in the chain could never be reached and a host
+# where WinRT fails would re-probe forever instead of settling on a verdict.
+# A backend is either given its full timeout or not run at all — the budget is
+# never spent by truncating one, because a squeezed timeout would condemn a
+# working backend and pin the host to a worse one for a week. A genuinely slow
+# host overruns instead, which is inconclusive rather than wrong: nothing is
+# cached, the balloon still fires, and the retry finds PowerShell warm.
+_WINRT_PROBE_TIMEOUT_SEC = 3.0
+_MODULE_QUERY_TIMEOUT_SEC = 1.5
+_BURNTTOAST_PROBE_TIMEOUT_SEC = 3.0
+
+# _run_powershell outcomes. The failed/inconclusive split is load-bearing: a
+# *failed* backend is genuinely broken here and the next one down may be cached
+# as the winner, but an *inconclusive* one may merely be slow, so caching past
+# it would be a guess with a week-long lifetime.
+PROBE_OK = "ok"
+PROBE_FAILED = "failed"
+PROBE_INCONCLUSIVE = "inconclusive"
+
+_BURNTTOAST_QUERY = "if (Get-Module -ListAvailable -Name BurntToast) { exit 0 } else { exit 1 }"
+
+# Well-known shell AppUserModelID for Windows PowerShell. A WinRT toast must be
+# addressed to a *registered* AUMID or Windows drops it silently; borrowing the
+# shell's own PowerShell entry means nothing has to be installed or registered.
+_POWERSHELL_AUMID = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
+
+
+def _build_windows_toast_script(backend: str, title: str, message: str,
+                                urgency: str = "normal") -> str:
+    """Build the PowerShell source for one Windows notification backend.
+
+    Split out from the dispatcher so the generated script can be parsed in a
+    test without spawning a toast (see tests/test_desktop_notification.py).
+    """
+    safe_title = escape_powershell_string(title)
+    safe_message = escape_powershell_string(message)
+
+    if backend == "winrt":
+        # Text is inserted as XML *text nodes*, not interpolated into the XML
+        # source, so XML metacharacters in a tool command cannot break the
+        # document. Escaping still applies to the PowerShell literal itself.
+        # silent="true" because the audio track already played the sound.
+        duration = 'long' if urgency == "critical" else 'short'
+        return (
+            '$ErrorActionPreference = "Stop"; '
+            '$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]; '
+            '$null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]; '
+            '$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent('
+            '[Windows.UI.Notifications.ToastTemplateType]::ToastText02); '
+            '$nodes = $xml.GetElementsByTagName("text"); '
+            f'$null = $nodes.Item(0).AppendChild($xml.CreateTextNode("{safe_title}")); '
+            f'$null = $nodes.Item(1).AppendChild($xml.CreateTextNode("{safe_message}")); '
+            '$audio = $xml.CreateElement("audio"); '
+            '$audio.SetAttribute("silent", "true"); '
+            '$null = $xml.DocumentElement.AppendChild($audio); '
+            f'$xml.DocumentElement.SetAttribute("duration", "{duration}"); '
+            '$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); '
+            '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('
+            f'"{_POWERSHELL_AUMID}").Show($toast)'
+        )
+
+    if backend == "burnttoast":
+        return (
+            '$ErrorActionPreference = "Stop"; '
+            'Import-Module BurntToast -ErrorAction Stop; '
+            f'New-BurntToastNotification -Text "{safe_title}", "{safe_message}" -Silent'
+        )
+
+    # notifyicon: pre-Win10 tray balloon. Windows 11 drops these unpredictably,
+    # hence its place at the end of the chain, but it is still correct on 7/8
+    # and on hosts where the WinRT projection is unavailable.
+    icon = "Warning" if urgency == "critical" else "Info"
+    return (
+        '[void][System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms"); '
+        '$n = New-Object System.Windows.Forms.NotifyIcon; '
+        '$n.Icon = [System.Drawing.SystemIcons]::Information; '
+        '$n.Visible = $true; '
+        f'$n.ShowBalloonTip(5000, "{safe_title}", "{safe_message}", '
+        f'[System.Windows.Forms.ToolTipIcon]::{icon}); '
+        'Start-Sleep -Seconds 6; '
+        '$n.Dispose()'
+    )
+
+
+def _powershell_command(script: str) -> List[str]:
+    """Always ``powershell.exe`` (Windows PowerShell 5.1), never ``pwsh`` — the
+    WinRT projection the toast backend relies on needs extra assembly loading
+    under PowerShell 7. ``-NoProfile`` keeps a hook from paying for the user's
+    profile on every notification or spoken message.
+    """
+    return [
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-WindowStyle", "Hidden", "-Command", script,
+    ]
+
+
+def _creation_flags() -> int:
+    return subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+
+
+def _spawn_powershell(script: str) -> bool:
+    """Fire-and-forget a hidden PowerShell script. True means it was spawned.
+
+    Never raises.
+    """
+    try:
+        subprocess.Popen(
+            _powershell_command(script),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=_creation_flags(),
+        )
+        return True
+    except Exception as e:
+        log_debug(f"PowerShell dispatch failed: {e}")
+        return False
+
+
+def _run_powershell(script: str, timeout: float) -> str:
+    """Run a hidden PowerShell script to completion. Never raises.
+
+    Returns PROBE_OK (exit 0), PROBE_FAILED (non-zero exit — broken here), or
+    PROBE_INCONCLUSIVE (timed out or could not be launched, so this host has
+    told us nothing we may act on).
+    """
+    try:
+        proc = subprocess.run(
+            _powershell_command(script),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+            creationflags=_creation_flags(),
+        )
+        return PROBE_OK if proc.returncode == 0 else PROBE_FAILED
+    except subprocess.TimeoutExpired:
+        log_debug(f"PowerShell probe timed out after {timeout}s")
+        return PROBE_INCONCLUSIVE
+    except Exception as e:
+        log_debug(f"PowerShell probe could not run: {e}")
+        return PROBE_INCONCLUSIVE
+
+
+def _notify_backend_cache_path() -> Optional[Path]:
+    """Marker file recording which Windows toast backend works on this host."""
+    try:
+        ensure_queue_dir()
+        return _prefs().queue_dir / _NOTIFY_BACKEND_FILE
+    except Exception:
+        return None
+
+
+def _read_cached_notify_backend() -> Optional[str]:
+    """Return the cached backend, or None when missing, stale or unreadable."""
+    path = _notify_backend_cache_path()
+    if path is None:
+        return None
+    try:
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        backend = data.get("backend")
+        if backend not in _WINDOWS_BACKENDS:
+            return None
+        if data.get("release") != platform.release():
+            return None
+        if time.time() - float(data.get("ts", 0)) > _NOTIFY_BACKEND_TTL_SEC:
+            return None
+        return str(backend)
+    except Exception as e:
+        log_debug(f"Could not read notify backend cache: {e}")
+        return None
+
+
+def _write_cached_notify_backend(backend: str) -> None:
+    path = _notify_backend_cache_path()
+    if path is None:
+        return
+    try:
+        path.write_text(
+            json.dumps({"backend": backend, "ts": time.time(), "release": platform.release()}),
+            encoding="utf-8",
+        )
+    except OSError as e:
+        log_debug(f"Could not write notify backend cache: {e}")
+
+
+def _clear_cached_notify_backend() -> None:
+    path = _notify_backend_cache_path()
+    if path is None:
+        return
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        pass
+
+
+def _probe_windows_backend(title: str, message: str, urgency: str) -> Tuple[Optional[str], bool]:
+    """Walk the chain until a backend is confirmed, showing *this* notification
+    through it. Returns (backend, cacheable).
+
+    The whole chain shares one wall-clock budget (_NOTIFY_PROBE_BUDGET_SEC): a
+    probe that overran the hook's registered timeout would be reaped by the
+    harness, and a reaped probe could leave behind a cache entry naming a
+    backend it never finished validating. So a backend runs only when its full
+    timeout still fits in the budget, and anything inconclusive — a timeout, a
+    launch failure, or a budget too small to finish the chain — makes the whole
+    probe non-cacheable. The notification still goes out best-effort through the
+    tray balloon; only the week-long verdict is withheld, and the next
+    notification probes again. First-of-the-week may therefore be best-effort
+    with the cache written on the second one.
+    """
+    deadline = time.monotonic() + _NOTIFY_PROBE_BUDGET_SEC
+    inconclusive = False
+
+    for backend in _WINDOWS_BACKENDS:
+        if backend == "notifyicon":
+            break  # last resort, handled below — it can never be validated
+
+        if backend == "burnttoast":
+            if deadline - time.monotonic() < _MODULE_QUERY_TIMEOUT_SEC + _BURNTTOAST_PROBE_TIMEOUT_SEC:
+                inconclusive = True
+                break
+            available = _run_powershell(_BURNTTOAST_QUERY, _MODULE_QUERY_TIMEOUT_SEC)
+            if available == PROBE_INCONCLUSIVE:
+                inconclusive = True
+                break
+            if available != PROBE_OK:
+                continue  # not installed; never install it
+            timeout = _BURNTTOAST_PROBE_TIMEOUT_SEC
+        else:
+            timeout = _WINRT_PROBE_TIMEOUT_SEC
+
+        if deadline - time.monotonic() < timeout:
+            inconclusive = True
+            break
+
+        result = _run_powershell(
+            _build_windows_toast_script(backend, title, message, urgency), timeout
+        )
+        if result == PROBE_OK:
+            return backend, True
+        if result == PROBE_INCONCLUSIVE:
+            inconclusive = True
+            break
+
+    # The balloon only lives as long as its host process, so it can never be run
+    # synchronously; a successful spawn is all the signal there is.
+    if _spawn_powershell(_build_windows_toast_script("notifyicon", title, message, urgency)):
+        return "notifyicon", not inconclusive
+    return None, False
+
+
+def _send_windows_notification(title: str, message: str, urgency: str) -> Tuple[bool, str]:
+    """Dispatch on Windows via the cached backend, probing the chain if needed.
+
+    Returns (dispatched, backend_name).
+    """
+    backend = _read_cached_notify_backend()
+    if backend:
+        if _spawn_powershell(_build_windows_toast_script(backend, title, message, urgency)):
+            return True, backend
+        # The cached choice can no longer even be spawned: re-probe the chain.
+        _clear_cached_notify_backend()
+
+    backend, cacheable = _probe_windows_backend(title, message, urgency)
+    if backend is None:
+        return False, "none"
+    if cacheable:
+        _write_cached_notify_backend(backend)
+    return True, backend
 
 
 def send_desktop_notification(title: str, message: str, urgency: str = "normal") -> bool:
@@ -1818,46 +2113,40 @@ def send_desktop_notification(title: str, message: str, urgency: str = "normal")
         urgency: 'normal' or 'critical'
 
     Returns:
-        True if notification was dispatched, False otherwise
+        True when a backend accepted the notification, False otherwise. For a
+        fire-and-forget dispatch that means the backend is known-good on this
+        host and the process spawned.
     """
     system = platform.system()
-    safe_title = _escape_notification_string(title)
-    safe_message = _escape_notification_string(message)
+    backend = "unsupported"
+    dispatched = False
+    reason = f"no desktop notification backend for platform {system}"
 
     try:
         if system == "Darwin":
             # Audio is handled separately by play_audio_macos() via afplay.
             # Omit "sound name" to avoid double sound and to work on macOS 15+
             # where osascript notifications may be silently blocked.
+            safe_title = _escape_notification_string(title)
+            safe_message = _escape_notification_string(message)
             script = f'display notification "{safe_message}" with title "{safe_title}"'
             subprocess.Popen(
                 ["osascript", "-e", script],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            log_debug(f"Sent macOS notification: {title} - {message}")
-            return True
+            backend, dispatched = "osascript", True
 
         elif system == "Linux":
             if is_wsl():
-                # WSL: use PowerShell NotifyIcon balloon tip (non-blocking toast)
-                ps_cmd = (
-                    '[void][System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms"); '
-                    '$n = New-Object System.Windows.Forms.NotifyIcon; '
-                    '$n.Icon = [System.Drawing.SystemIcons]::Information; '
-                    '$n.Visible = $true; '
-                    f'$n.ShowBalloonTip(5000, "{safe_title}", "{safe_message}", '
-                    f'[System.Windows.Forms.ToolTipIcon]::{"Warning" if urgency == "critical" else "Info"}); '
-                    'Start-Sleep -Seconds 6; '
-                    '$n.Dispose()'
+                # WSL: the toast is drawn by the Windows host, so it goes
+                # through powershell.exe with PowerShell escaping.
+                backend = "notifyicon_wsl"
+                dispatched = _spawn_powershell(
+                    _build_windows_toast_script("notifyicon", title, message, urgency)
                 )
-                subprocess.Popen(
-                    ["powershell.exe", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                log_debug(f"Sent WSL balloon notification via PowerShell: {title}")
-                return True
+                if not dispatched:
+                    reason = "powershell.exe dispatch failed"
             else:
                 # Native Linux: use notify-send
                 if shutil.which("notify-send"):
@@ -1866,43 +2155,49 @@ def send_desktop_notification(title: str, message: str, urgency: str = "normal")
                         cmd.extend(["-u", "critical"])
                     cmd.extend([title, message])
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    log_debug(f"Sent Linux notification: {title} - {message}")
-                    return True
+                    backend, dispatched = "notify-send", True
                 else:
-                    log_debug("notify-send not found, skipping desktop notification")
-                    return False
+                    backend = "none"
+                    reason = "notify-send not found"
 
         elif system == "Windows":
-            # Windows: use NotifyIcon balloon tip (non-blocking toast)
-            ps_cmd = (
-                '[void][System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms"); '
-                '$n = New-Object System.Windows.Forms.NotifyIcon; '
-                '$n.Icon = [System.Drawing.SystemIcons]::Information; '
-                '$n.Visible = $true; '
-                f'$n.ShowBalloonTip(5000, "{safe_title}", "{safe_message}", '
-                f'[System.Windows.Forms.ToolTipIcon]::{"Warning" if urgency == "critical" else "Info"}); '
-                'Start-Sleep -Seconds 6; '
-                '$n.Dispose()'
-            )
-            subprocess.Popen(
-                ["powershell.exe", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            )
-            log_debug(f"Sent Windows balloon notification: {title}")
-            return True
+            dispatched, backend = _send_windows_notification(title, message, urgency)
+            if not dispatched:
+                reason = "every Windows toast backend failed (winrt, burnttoast, notifyicon)"
 
     except FileNotFoundError as e:
-        log_debug(f"Notification command not found: {e}")
+        reason = f"notification command not found: {e}"
     except Exception as e:
-        log_error(f"Desktop notification failed: {e}")
+        reason = f"desktop notification failed: {e}"
+        log_error(reason)
 
-    return False
+    if dispatched:
+        log_event("info", "desktop_notification", backend=backend,
+                  status="DISPATCHED", urgency=urgency)
+    else:
+        log_error_event(ErrorCode.NOTIFICATION_FAILED, "desktop_notification",
+                        message=reason, backend=backend, urgency=urgency)
+    return dispatched
 
 # =============================================================================
 # TEXT-TO-SPEECH
 # =============================================================================
+
+def _build_sapi_script(message: str) -> str:
+    """PowerShell source for the SAPI speech path (Windows and WSL).
+
+    Same escaping trap as the toast: this is interpolated into a PowerShell
+    double-quoted string, so it needs backtick escaping. Until v6.5.1 it used
+    the osascript escaper, and any spoken text containing a quote produced a
+    script that failed to parse — silent TTS, with `$` and backticks dropped
+    from the wording even when it did parse.
+    """
+    return (
+        'Add-Type -AssemblyName System.Speech; '
+        '(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('
+        f'"{escape_powershell_string(message)}")'
+    )
+
 
 def play_tts(message: str) -> bool:
     """Speak a message using platform-native TTS.
@@ -1911,38 +2206,34 @@ def play_tts(message: str) -> bool:
         message: Text to speak
 
     Returns:
-        True if TTS was dispatched, False otherwise
+        True when an engine accepted the message, False otherwise.
     """
     system = platform.system()
-    # Sanitize message for shell safety
-    safe_message = _escape_notification_string(message)
+    backend = "unsupported"
+    dispatched = False
+    reason = f"no TTS engine for platform {system}"
 
     try:
         if system == "Darwin":
+            # argv, not a shell string: `say` needs no escaping.
             subprocess.Popen(
                 ["say", message],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            log_debug(f"TTS (macOS say): {message}")
-            return True
+            backend, dispatched = "say", True
 
         elif system == "Linux":
             if is_wsl():
-                # WSL: use Windows SAPI via PowerShell
-                ps_cmd = (
-                    'Add-Type -AssemblyName System.Speech; '
-                    f'(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("{safe_message}")'
-                )
-                subprocess.Popen(
-                    ["powershell.exe", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                log_debug(f"TTS (WSL PowerShell): {message}")
-                return True
+                # WSL: speech is synthesised by the Windows host via SAPI.
+                backend = "sapi_wsl"
+                dispatched = _spawn_powershell(_build_sapi_script(message))
+                if not dispatched:
+                    reason = "powershell.exe dispatch failed"
             else:
                 # Native Linux: try espeak, then spd-say
+                backend = "none"
+                reason = "no Linux TTS engine found (espeak, spd-say)"
                 for cmd_name in ["espeak", "spd-say"]:
                     if shutil.which(cmd_name):
                         subprocess.Popen(
@@ -1950,31 +2241,27 @@ def play_tts(message: str) -> bool:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL
                         )
-                        log_debug(f"TTS (Linux {cmd_name}): {message}")
-                        return True
-                log_debug("No Linux TTS engine found (espeak, spd-say)")
-                return False
+                        backend, dispatched = cmd_name, True
+                        break
 
         elif system == "Windows":
-            ps_cmd = (
-                'Add-Type -AssemblyName System.Speech; '
-                f'(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("{safe_message}")'
-            )
-            subprocess.Popen(
-                ["powershell.exe", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            )
-            log_debug(f"TTS (Windows SAPI): {message}")
-            return True
+            backend = "sapi"
+            dispatched = _spawn_powershell(_build_sapi_script(message))
+            if not dispatched:
+                reason = "powershell.exe dispatch failed"
 
     except FileNotFoundError as e:
-        log_debug(f"TTS command not found: {e}")
+        reason = f"TTS command not found: {e}"
     except Exception as e:
-        log_error(f"TTS failed: {e}")
+        reason = f"TTS failed: {e}"
+        log_error(reason)
 
-    return False
+    if dispatched:
+        log_event("info", "tts_dispatch", backend=backend, status="DISPATCHED")
+    else:
+        log_error_event(ErrorCode.TTS_FAILED, "tts_dispatch",
+                        message=reason, backend=backend)
+    return dispatched
 
 # =============================================================================
 # WEBHOOK
@@ -2489,7 +2776,9 @@ def run_hook(hook_type: str, stdin_data: dict = None, variant: Optional[str] = N
 
     # Determine notification mode with per-hook override support
     notification_settings = config.get("notification_settings", {})
-    global_mode = notification_settings.get("mode", "audio_only")
+    # Matches config/default_preferences.json: a config predating the key must
+    # behave like a fresh install, not like a stricter audio-only one.
+    global_mode = notification_settings.get("mode", "audio_and_notification")
     per_hook_modes = {k: v for k, v in notification_settings.get("per_hook", {}).items() if not k.startswith("_")}
     mode = per_hook_modes.get(hook_type, global_mode)
 

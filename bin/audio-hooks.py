@@ -156,7 +156,7 @@ def require_project_root() -> int:
 # Project state — version, install detection, hook catalogue
 # ---------------------------------------------------------------------------
 
-PROJECT_VERSION = "6.5.0"
+PROJECT_VERSION = "6.5.1"
 
 # Canonical hook catalogue. Order matches CLAUDE.md and the install scripts.
 HOOK_CATALOG: List[Dict[str, Any]] = [
@@ -1287,6 +1287,152 @@ def _check_audio_files() -> Dict[str, Any]:
     return {"missing": missing, "present": present, "expected": len(HOOK_CATALOG)}
 
 
+# Keys the product removed but which linger in configs written before the
+# migration gate was repaired. Their presence proves the config never migrated,
+# which also means every key added since is absent and silently defaulted.
+_RETIRED_CONFIG_KEYS = ("focus_flow",)
+
+# The only three hooks that can tell a user "the work is finished". With none of
+# them on, echook is installed, healthy, and audibly does nothing for the thing
+# it is installed for — a state indistinguishable from broken, and the exact
+# shape that sent one user hunting through the Claude Code binary for a
+# regression that did not exist.
+_COMPLETION_SIGNAL_HOOKS = ("stop", "subagent_stop", "notification")
+
+# hook_runner.is_hook_enabled's built-in default set. Only these are on when
+# enabled_hooks says nothing; subagent_stop is not among them, so an absent
+# subagent_stop key is off, not on.
+_DEFAULT_ENABLED_HOOKS = ("notification", "stop", "permission_request")
+
+
+def _check_completion_signal(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Report whether any hook capable of signalling "done" is enabled."""
+    enabled_hooks = cfg.get("enabled_hooks") or {}
+    if not isinstance(enabled_hooks, dict):
+        return {"any_enabled": True, "checked": []}
+    on = [
+        h for h in _COMPLETION_SIGNAL_HOOKS
+        if enabled_hooks.get(h, h in _DEFAULT_ENABLED_HOOKS) is True
+    ]
+    return {"any_enabled": bool(on), "enabled": on, "checked": list(_COMPLETION_SIGNAL_HOOKS)}
+
+
+def _check_terminal_sequence_inert(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """terminalSequence is enabled but cannot fire, because our hooks are async.
+
+    Claude Code writes a hook's ``terminalSequence`` from exactly one function,
+    and every call site for it sits on a *synchronous* completion path — the
+    one that has already collected the hook's stdout and exit status. A hook
+    declared ``"async": true`` is backgrounded instead; its stdout is read, but
+    the result is routed to the model-response attachment path, which never
+    emits the escape. Every handler in the Claude Code template is async (it
+    has to be — synchronous plugin hooks can hang Claude Code's startup on
+    Windows, claude-plugins-official#351), so the feature is inert as shipped
+    in v6.5.0.
+    """
+    ts = ((cfg.get("notification_settings") or {}).get("terminal_sequence") or {})
+    enabled = ts.get("enabled") is True if isinstance(ts, dict) else False
+    return {"enabled": enabled, "inert": enabled}
+
+
+def _check_prefs_schema() -> Dict[str, Any]:
+    """Detect a user_preferences.json on disk that never migrated.
+
+    Before 6.5.1 the migration ran only when the config's ``_version`` differed
+    from the template's, and the template's own ``_version`` had been left at
+    5.1.5 for four minor releases. Equal strings meant no migration, so configs
+    froze: no key added since 5.1.5 ever landed, and keys the product dropped
+    were never cleaned up.
+
+    Reads the file directly rather than ``_load_config_raw()`` — that overlays
+    the template, so its ``_version`` always matches and the drift this exists
+    to catch would be invisible.
+    """
+    try:
+        path = _config_path()
+    except Exception:
+        return {"stale": False}
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"stale": False, "config_path": str(path)}
+    if not isinstance(cfg, dict):
+        return {"stale": False, "config_path": str(path)}
+    version = cfg.get("_version") or cfg.get("version")
+    retired = [k for k in _RETIRED_CONFIG_KEYS if k in cfg]
+    stale = bool(retired) or (version is not None and version != PROJECT_VERSION)
+    return {
+        "stale": stale,
+        "config_path": str(path),
+        "config_version": version,
+        "project_version": PROJECT_VERSION,
+        "retired_keys": retired,
+    }
+
+
+def _check_plugin_record() -> Dict[str, Any]:
+    """Compare the installed-plugin record against the code actually running.
+
+    Two distinct failures share this shape. The benign one is an ordinary stale
+    record after the plugin moved to a directory-source marketplace. The other
+    is anthropics/claude-code#90135: a marketplace re-materialisation deletes
+    the versioned cache path that live sessions are pinned to, and every one of
+    their plugin hooks stops firing with no error anywhere — including the
+    plugin's own hooks, which would be what reported it.
+    """
+    installed_json = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+    result: Dict[str, Any] = {"checked": str(installed_json), "records": []}
+    try:
+        data = json.loads(installed_json.read_text(encoding="utf-8"))
+    except Exception:
+        return result
+    plugins = data.get("plugins") if isinstance(data, dict) else None
+    if not isinstance(plugins, dict):
+        return result
+
+    live_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    for key, entries in plugins.items():
+        if not key.lower().startswith("audio-hooks@"):
+            continue
+        for entry in (entries if isinstance(entries, list) else [entries]):
+            if not isinstance(entry, dict):
+                continue
+            install_path = entry.get("installPath") or ""
+            record = {
+                "id": key,
+                "scope": entry.get("scope"),
+                "recorded_version": entry.get("version"),
+                "install_path": install_path,
+                "path_exists": bool(install_path) and Path(install_path).exists(),
+            }
+            record["version_drift"] = (
+                record["recorded_version"] is not None
+                and record["recorded_version"] != PROJECT_VERSION
+            )
+            result["records"].append(record)
+
+    result["live_plugin_root"] = live_root
+    result["stale"] = any(
+        r["version_drift"] or not r["path_exists"] for r in result["records"]
+    )
+    return result
+
+
+def _check_hook_shell() -> Dict[str, Any]:
+    """On Windows, plugin hook commands run through Git Bash unless told otherwise.
+
+    Claude Code runs a command hook through bash by default, falling back to
+    PowerShell on Windows only when Git Bash is absent — and 2.1.251 refuses a
+    bash hook outright in that case ("requires bash but Git Bash was not
+    found"). echook's template is written for a POSIX shell, so a Windows box
+    without Git Bash loses every handler at once rather than one.
+    """
+    if platform.system() != "Windows":
+        return {"applicable": False}
+    bash = shutil.which("bash")
+    return {"applicable": True, "git_bash": bash, "available": bool(bash)}
+
+
 def cmd_diagnose(_args: List[str]) -> int:
     if require_project_root() != 0:
         return 1
@@ -1395,6 +1541,117 @@ def cmd_diagnose(_args: List[str]) -> int:
             "suggested_command": "audio-hooks uninstall --cursor",
         })
 
+    completion_signal = _check_completion_signal(cfg)
+    if not completion_signal["any_enabled"]:
+        warnings.append({
+            "code": "NO_COMPLETION_SIGNAL",
+            "message": (
+                "None of stop, subagent_stop or notification is enabled, so no "
+                "hook can tell you a turn finished. echook is healthy and will "
+                "stay silent for the thing most people install it for."
+            ),
+            "hint": (
+                "stop fires at the end of EVERY turn and carries no finality "
+                "marker, which is why it gets muted. Re-enable it together with "
+                "the background-task filter so it only sounds once the "
+                "subagents are done, or enable notification and rely on its "
+                "idle_prompt variant, which is the genuine \"waiting for you\" "
+                "signal."
+            ),
+            "suggested_command": (
+                "audio-hooks hooks enable stop && audio-hooks set "
+                "filters.stop.skip_if_background_tasks_running true"
+            ),
+        })
+
+    terminal_sequence = _check_terminal_sequence_inert(cfg)
+    if terminal_sequence.get("inert"):
+        warnings.append({
+            "code": "TERMINAL_SEQUENCE_INERT",
+            "message": (
+                "notification_settings.terminal_sequence.enabled is true, but "
+                "no escape will ever be emitted: Claude Code only writes a "
+                "hook's terminalSequence from a synchronous completion path, "
+                "and every echook handler is registered async."
+            ),
+            "hint": (
+                "Use the desktop-notification channel instead "
+                "(notification_settings.mode = audio_and_notification), which "
+                "sends a real OS toast. Tracked for a future release; dropping "
+                "async would risk the Windows startup hang that made every "
+                "handler async in the first place."
+            ),
+            "suggested_command": "audio-hooks set notification_settings.terminal_sequence.enabled false",
+        })
+
+    prefs_schema = _check_prefs_schema()
+    if prefs_schema.get("stale"):
+        warnings.append({
+            "code": "PREFS_SCHEMA_STALE",
+            "message": (
+                "user_preferences.json is stamped "
+                f"{prefs_schema.get('config_version')} against a "
+                f"{prefs_schema.get('project_version')} install"
+                + (
+                    " and still carries keys this version removed ("
+                    + ", ".join(prefs_schema["retired_keys"]) + ")"
+                    if prefs_schema.get("retired_keys") else ""
+                )
+                + ". Keys added since are absent and silently defaulted."
+            ),
+            "hint": (
+                "Before 6.5.1 migration ran only when the config's _version "
+                "differed from the template's, and the template's was left at "
+                "5.1.5 for four releases — so equal strings meant no migration "
+                "ever ran. Loading the config once on this version migrates it."
+            ),
+            "suggested_command": "audio-hooks status",
+            "retired_keys": prefs_schema.get("retired_keys", []),
+        })
+
+    plugin_record = _check_plugin_record()
+    if plugin_record.get("stale"):
+        missing = [r for r in plugin_record["records"] if not r["path_exists"]]
+        warnings.append({
+            "code": "STALE_PLUGIN_CACHE",
+            "message": (
+                "installed_plugins.json records a version or install path that "
+                "is not the code now running"
+                + (
+                    f"; {len(missing)} recorded install path(s) no longer exist"
+                    if missing else ""
+                )
+                + "."
+            ),
+            "hint": (
+                "Harmless when the marketplace is a directory source, since "
+                "${CLAUDE_PLUGIN_ROOT} then resolves to the checkout. It is not "
+                "harmless when the path is gone: per anthropics/claude-code"
+                "#90135 a re-materialised marketplace deletes the versioned "
+                "path live sessions are pinned to, and their plugin hooks stop "
+                "firing silently. Reload plugins or restart to re-pin."
+            ),
+            "suggested_command": "audio-hooks status",
+            "records": plugin_record["records"],
+        })
+
+    hook_shell = _check_hook_shell()
+    if hook_shell.get("applicable") and not hook_shell.get("available"):
+        warnings.append({
+            "code": "WINDOWS_NO_GIT_BASH",
+            "message": (
+                "Windows without Git Bash on PATH. Claude Code runs command "
+                "hooks through bash by default and refuses them outright when "
+                "it is missing, so every echook handler fails at once."
+            ),
+            "hint": (
+                "Install Git for Windows (https://git-scm.com/downloads/win). "
+                "Claude Code reports this itself as \"requires bash but Git "
+                "Bash was not found\"."
+            ),
+            "suggested_command": "audio-hooks diagnose",
+        })
+
     emit({
         "ok": len(errors) == 0,
         "version": PROJECT_VERSION,
@@ -1407,6 +1664,11 @@ def cmd_diagnose(_args: List[str]) -> int:
         "audio_files": audio_files,
         "install": install,
         "editor_targets": editor_targets,
+        "completion_signal": completion_signal,
+        "terminal_sequence": terminal_sequence,
+        "prefs_schema": prefs_schema,
+        "plugin_record": plugin_record,
+        "hook_shell": hook_shell,
         "errors": errors,
         "warnings": warnings,
     })

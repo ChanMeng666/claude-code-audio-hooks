@@ -1,6 +1,6 @@
 # echook — AI Operator Guide
 
-> v6.4.0 · Multi-platform: Claude Code (plugin) · Cursor (native + auto-bridge) · Codex (plugin + native). Source-of-truth for every capability is `audio-hooks manifest` (live JSON, includes `pointers`, `editor_targets`, `supported_editors`). This file is orientation only.
+> v6.5.1 · Multi-platform: Claude Code (plugin) · Cursor (native + auto-bridge) · Codex (plugin + native). Source-of-truth for every capability is `audio-hooks manifest` (live JSON, includes `pointers`, `editor_targets`, `supported_editors`). This file is orientation only.
 
 <critical>
 1. **`audio-hooks` CLI is the only interface.** Single Python binary, JSON output, stable error codes. Never hand-edit `user_preferences.json` — use `audio-hooks set <dotted.key> <value>`.
@@ -42,13 +42,20 @@ To keep exactly one variant of a muted parent, set that variant key explicitly �
 
 ## `stop` does not mean "task complete"
 
+**Its mirror image is the second most common complaint: "the task-finished sound stopped working."** That is almost always this same advice having been taken earlier — `stop` sitting at `false` in `user_preferences.json` months later, with the user reading the silence as an upstream regression. `audio-hooks diagnose` reports it as `NO_COMPLETION_SIGNAL` when `notification` is off too. Check `hooks list` before investigating Claude Code; the restore is:
+
+```
+audio-hooks hooks enable stop
+audio-hooks set filters.stop.skip_if_background_tasks_running true
+```
+
 The single most common user complaint is audio firing too often, and it is almost always `stop`. It maps to Claude Code's `Stop`, which fires at the **end of every turn**; the payload carries **no field** distinguishing a final turn from an intermediate one, so no configuration can make it mean "the work is done". Say this rather than tuning debounce and hoping. Real fixes, in order: `hooks enable-only notification permission_request` (fires only when the user must act — `idle_prompt` is the genuine "waiting for you" signal); `filters.stop.skip_if_background_tasks_running true` (v6.4, stays quiet while teammates/subagents are still running); debounce last.
 
 ## Tests, CI, and version bumps
 
-- **Run tests:** `python -m unittest discover -v tests` (292 tests). NOT pytest — no `pyproject.toml` / `pytest.ini`.
+- **Run tests:** `python -m unittest discover -v tests` (399 tests). NOT pytest — no `pyproject.toml` / `pytest.ini`.
 - **CI:** `.github/workflows/smoke.yml` — Ubuntu/Windows/macOS × Python 3.9/3.12/3.13, plus `bash scripts/build-plugin.sh --check`.
-- **Bump version:** `bash scripts/bump-version.sh <new_version>` — rewrites all 8 canonical version locations and runs `build-plugin.sh`. Idempotent. Outputs JSON with `files_changed` and `next_steps`.
+- **Bump version:** `bash scripts/bump-version.sh <new_version>` — rewrites all 11 canonical version locations (locations 9-11 are `config/default_preferences.json` — see the gotcha below) and runs `build-plugin.sh`. Idempotent. Outputs JSON with `files_changed` and `next_steps`.
 
 ## Pointers (also exposed as `audio-hooks manifest.pointers`)
 
@@ -60,6 +67,12 @@ The single most common user complaint is audio firing too often, and it is almos
 
 ## Silent-bite gotchas
 
+- **`terminalSequence` (v6.5.0) is inert and must not be recommended.** Claude Code writes a hook's OSC escape from exactly one function, called only on **synchronous** completion paths; all 67 handlers in the Claude Code template are `async: true`, so the escape is never emitted. Measured live (async 0/3, sync 2/2) — see `docs/EVENT_BEHAVIOR_NOTES.md`. `diagnose` reports `TERMINAL_SEQUENCE_INERT`. For a desktop toast, point users at `notification_settings.mode = audio_and_notification`. Do not "fix" it by flipping the existing handlers to sync — that puts a Python start-up on the end of every turn; the recorded design is a second minimal sync handler beside the async one.
+- **`PreModelSwitch` must never be registered.** Claude Code 2.1.251 added `PreModelSwitch`/`PostModelSwitch`. `PreModelSwitch` is a **blocking decision hook** — `permissionDecision: allow|deny|ask`, *"same contract as PreToolUse"* — and Claude Code waits for it, with six distinct error strings for a hook that does not answer (`model switch blocked by a PreModelSwitch hook`, `did not respond before its timeout`, `Fast mode was not changed: the PreModelSwitch check failed`). Same trap as `WorktreeCreate` in v6.3.4. `PostModelSwitch` is the safe one (`additionalContext` only) and is cleared for a later release; see `docs/EVENT_BEHAVIOR_NOTES.md` for its payload and the registration steps.
+- **Do not migrate `hooks.json` to the `args` exec form.** It looks like the fix for every Windows quoting bug — *"spawned directly with these arguments — no shell"* — but [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) reports `args` being dropped on Windows and still routed through `bash.exe` with no argv. Windows is this project's primary platform. Shell form stays.
+- **Two escapers, and using the wrong one is silent.** `escape_powershell_string()` (backticks) is for PowerShell; `_escape_notification_string()` (backslashes) is for macOS `osascript` **only**. Through 6.5.0 the Windows toast used the osascript one, so any notification containing a `"` produced a script that failed to parse and no toast at all — invisible, because the dispatch was fire-and-forget into `DEVNULL` and returned `True` regardless. It shipped twice — `send_desktop_notification()` **and** `play_tts()`, so Windows/WSL TTS went silent on the same inputs. Both fixed in 6.5.1; the osascript escaper now reaches exactly one branch (macOS). If you add a platform branch that builds a shell string, pick the escaper that matches the shell and add a parse assertion to `tests/test_desktop_notification.py` — the real guard is feeding the generated script to PowerShell's own parser, not comparing strings.
+- **`_migrate_if_needed` is gated structurally, not on the version string.** Through 6.5.0 it returned early whenever `user._version == template._version`, and `config/default_preferences.json` was left stamped `5.1.5` from 5.1.5 through 6.5.0 — so for a large class of installs migration **never ran** and four minor versions of new keys never landed. `scripts/bump-version.sh` now owns that stamp as canonical locations 9–11. If you add a version location, add it there too.
+- **A dead notification channel used to look identical to a working one.** `send_desktop_notification()` now logs `desktop_notification` at **info** with the backend it used, and emits `NOTIFICATION_FAILED` when every backend fails. Keep it that way: anything that dispatches fire-and-forget into `DEVNULL` and returns `True` is unfalsifiable, and this project has now shipped that bug once.
 - **Cursor does not inject `CLAUDE_PLUGIN_DATA`** when bridging — `UserPreferences._resolve_data_dir()` in `hooks/user_preferences.py` is the fallback chain. Do not assume the env var exists. **Codex is the opposite**: it *does* inject `CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA` compat aliases alongside its native `PLUGIN_ROOT`/`PLUGIN_DATA`, so do not generalise Cursor's behaviour to it.
 - **Codex sets no `CODEX_VERSION` env var.** Invoker detection uses the `--invoker codex` CLI flag baked into the Codex install template, parsed by `hooks/invoker.py`.
 - **Claude Code registers 30 of the 39 canonical events plus 44 matcher variants; Cursor (native: 19 template entries → 18 distinct events, incl. granular per-tool shell/MCP/file events; auto-bridge: 8 coarse) and Codex (11 of 39) have smaller hook surfaces and no variant support.** The other 9 canonical events are Cursor-only (`shell_*`, `mcp_*`, `file_read`, `agent_response`, `agent_thinking`, `workspace_open`, `tab_file_edit`) and Claude Code has no equivalent — `manifest.supported_editors["claude-code"].events` is derived from the template, not from `HOOK_CATALOG` (before v6.4.1 it was, and wrongly claimed every canonical event). Codex's 11th event, `SessionEnd`, is registered by `install --codex` **only** when the installed Codex is ≥ 0.145.0. The runner no-ops unsupported events with `skipped_no_*_equivalent` debug NDJSON.

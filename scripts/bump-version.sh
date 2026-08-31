@@ -5,7 +5,7 @@
 # Usage:
 #   bash scripts/bump-version.sh [--skip-tests] <new_version>
 #
-# Updates 8 canonical files:
+# Updates 9 canonical files:
 #   bin/audio-hooks.py                                  PROJECT_VERSION
 #   hooks/hook_runner.py                                HOOK_RUNNER_VERSION
 #   .claude-plugin/marketplace.json                     metadata.version + plugins[0].version
@@ -14,6 +14,7 @@
 #   cursor-hooks/hooks.json                             _audio_hooks_version
 #   codex-hooks/hooks.json                              _audio_hooks_version
 #   codex-hooks/plugin-hooks.json                       _audio_hooks_version
+#   config/default_preferences.json                     _version + version + "(vX.Y.Z)" in _comment
 #
 # Then runs scripts/build-plugin.sh to sync the generated plugin tree, and
 # (unless --skip-tests is given) runs the unittest suite as a sanity check.
@@ -141,6 +142,33 @@ def bump_json_string(rel, key_quoted, expected_count):
         changes.append({"file": rel, "old": "/".join(sorted(set(olds))), "new": new_version})
 
 
+def bump_embedded_paren_version(rel, key_quoted, expected_count):
+    """Rewrite a `(vX.Y.Z)` that is embedded inside a JSON string value.
+
+    bump_json_string() can't do this one: the value is prose ("echook - Default
+    Configuration Template (v6.5.0)"), not a bare semver, so its `"[0-9][^"]*"`
+    guard never matches.
+    """
+    fp = repo / rel
+    raw = fp.read_bytes()
+    text = raw.decode("utf-8")
+    pat = re.compile(rf'({re.escape(key_quoted)}\s*:\s*"[^"]*\(v)([0-9][^)"]*)(\))')
+    matches = pat.findall(text)
+    if len(matches) != expected_count:
+        print(json.dumps({
+            "ok": False,
+            "error": f"expected {expected_count} embedded (vX.Y.Z) after {key_quoted} in {rel}, found {len(matches)}",
+        }), file=sys.stderr)
+        sys.exit(1)
+    olds = [m[1] for m in matches]
+    for o in olds:
+        old_versions.add(o)
+    new_text = pat.sub(rf'\g<1>{new_version}\g<3>', text)
+    if new_text != text:
+        fp.write_bytes(new_text.encode("utf-8"))
+        changes.append({"file": rel, "old": "/".join(sorted(set(olds))), "new": new_version})
+
+
 # 1 + 2: Python constants
 bump_py_const("bin/audio-hooks.py", "PROJECT_VERSION")
 bump_py_const("hooks/hook_runner.py", "HOOK_RUNNER_VERSION")
@@ -158,6 +186,15 @@ bump_json_string("plugins/audio-hooks/.codex-plugin/plugin.json", '"version"', e
 bump_json_string("cursor-hooks/hooks.json", '"_audio_hooks_version"', expected_count=1)
 bump_json_string("codex-hooks/hooks.json", '"_audio_hooks_version"', expected_count=1)
 bump_json_string("codex-hooks/plugin-hooks.json", '"_audio_hooks_version"', expected_count=1)
+
+# 9: the preferences template stamps the version three ways. It is canonical
+#    because UserPreferences._migrate_if_needed writes _version into every
+#    user's config; leaving it stale (it sat at 5.1.5 through 6.5.0) makes every
+#    install claim a version it isn't. `"version"` cannot match inside
+#    `"_version"` — the leading quote is part of the literal.
+bump_json_string("config/default_preferences.json", '"_version"', expected_count=1)
+bump_json_string("config/default_preferences.json", '"version"', expected_count=1)
+bump_embedded_paren_version("config/default_preferences.json", '"_comment"', expected_count=1)
 
 # Sync the generated plugin tree (copies bin/, hooks/, cursor-hooks/, codex-hooks/, etc).
 # Use $BASH (set by the parent bash) so we get the same bash binary that ran us
@@ -191,19 +228,23 @@ old_version = next(iter(old_versions)) if len(old_versions) == 1 else (
     sorted(old_versions)[-1] if old_versions else None
 )
 
+# Some files carry more than one canonical location (marketplace.json,
+# default_preferences.json), so dedupe while preserving first-touch order.
+files_changed = list(dict.fromkeys(c["file"] for c in changes))
+
 ok = (build_proc.returncode == 0) and (tests_rc in (None, 0))
 out = {
     "ok": ok,
     "old_version": old_version,
     "new_version": new_version,
-    "files_changed": [c["file"] for c in changes],
+    "files_changed": files_changed,
     "build_plugin": {"rc": build_proc.returncode, "stdout": build_out, "stderr": build_err},
     "tests": {"skipped": skip_tests, "rc": tests_rc, "summary": tests_summary},
 }
 out["next_steps"] = [
     s for s in [
-        f"git diff -- {' '.join(c['file'] for c in changes)}" if changes else None,
-        f"git add -A && git commit -m 'chore(release): v{new_version}'" if changes else None,
+        f"git diff -- {' '.join(files_changed)}" if files_changed else None,
+        f"git add -A && git commit -m 'chore(release): v{new_version}'" if files_changed else None,
         f"git tag v{new_version}",
     ] if s
 ]

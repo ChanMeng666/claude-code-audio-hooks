@@ -19,7 +19,7 @@ It returns a JSON document listing the platform, audio player binary, the state 
 | `AUDIO_PLAY_FAILED` | Player exited with an error | `audio-hooks test <hook>` to reproduce; check `audio-hooks logs tail --level error` |
 | `INVALID_CONFIG` | `user_preferences.json` is missing or malformed | `audio-hooks manifest --schema` for the schema; or just run any `audio-hooks set` command — it auto-initialises from the default template |
 | `WEBHOOK_HTTP_ERROR` / `WEBHOOK_TIMEOUT` | Webhook unreachable | `audio-hooks webhook test`; check the URL and network |
-| `TTS_FAILED` | TTS engine failed or missing | `audio-hooks tts set --enabled false` or install: macOS `say` (built-in), Linux `apt install espeak`, Windows SAPI (built-in) |
+| `TTS_FAILED` | TTS engine failed or missing. **Before 6.5.1 this was never emitted**, and on Windows/WSL any spoken text containing a `"` produced an unparseable PowerShell script, so TTS went silent with no error | `audio-hooks tts set --enabled false` or install: macOS `say` (built-in), Linux `apt install espeak`, Windows SAPI (built-in) |
 | `SETTINGS_DISABLE_ALL_HOOKS` | `~/.claude/settings.json` has `"disableAllHooks": true` | Edit the settings file to remove or set `false` |
 | `DUAL_INSTALL_DETECTED` | Both the script install and the plugin install are active | `audio-hooks uninstall` (removes the script install, preserves config + audio) |
 | `PROJECT_DIR_NOT_FOUND` | Could not locate project directory | Ensure the project files are present at the install location |
@@ -30,6 +30,12 @@ It returns a JSON document listing the platform, audio player binary, the state 
 | `CODEX_CONFIG_PARSE_ERROR` | Codex hooks are installed but `~/.codex/config.toml` could not be parsed. | Fix the TOML syntax. Hooks are enabled by default unless `[features].hooks = false` is present. |
 | `NATIVE_NOTIFICATIONS_ACTIVE` | *(warning)* Claude Code's own `preferredNotifChannel` is set to something other than `notifications_disabled`, so it signals the same events echook does — expect a double bell or duplicate toast | Keep both, or set `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json` to hear only echook, or `audio-hooks hooks disable notification` to hear only Claude Code |
 | `CODEX_MANAGED_HOOKS_ONLY` | *(warning)* A managed Codex config sets `allow_managed_hooks_only`, so `$CODEX_HOME/hooks.json` is silently ignored — `install --codex` reports success and then never fires | Ask the owner of the named `requirements.toml` to permit user hooks, or install via the Codex plugin marketplace instead |
+| `NO_COMPLETION_SIGNAL` | *(warning)* None of `stop`, `subagent_stop` or `notification` is enabled, so nothing can tell you a turn finished. echook is healthy and stays silent for the thing most people install it for | `audio-hooks hooks enable stop && audio-hooks set filters.stop.skip_if_background_tasks_running true` — or enable `notification` and rely on its `idle_prompt` variant |
+| `NOTIFICATION_FAILED` | Every desktop-notification backend for this platform failed. The NDJSON line names which one was tried and why it failed | Windows: check that notifications are on for the machine and not suppressed by Do Not Disturb. Linux: `sudo apt install libnotify-bin` for `notify-send`. The audio track is unaffected |
+| `PREFS_SCHEMA_STALE` | *(warning)* `user_preferences.json` is stamped at an older version than the install, or still carries a key this version removed — so keys added since are absent and silently defaulted | Loading the config once on 6.5.1+ migrates it. Any `audio-hooks` command does that; `audio-hooks status` is the cheapest |
+| `STALE_PLUGIN_CACHE` | *(warning)* `installed_plugins.json` records a version or install path that is not the code now running. Harmless for a `directory`-source marketplace; **not** harmless when the recorded path is gone | Reload plugins or restart Claude Code to re-pin. See [#90135](https://github.com/anthropics/claude-code/issues/90135) — a re-materialised marketplace deletes the path live sessions are pinned to and their plugin hooks stop firing silently |
+| `WINDOWS_NO_GIT_BASH` | *(warning)* Windows with no Git Bash on PATH. Claude Code runs command hooks through bash by default and refuses them outright when it is missing, so every handler fails at once | Install [Git for Windows](https://git-scm.com/downloads/win). Claude Code reports this itself as *"requires bash but Git Bash was not found"* |
+| `TERMINAL_SEQUENCE_INERT` | *(warning)* `notification_settings.terminal_sequence.enabled` is true, but Claude Code only writes a hook's `terminalSequence` from a **synchronous** completion path and every echook handler is registered `async` — so no escape is ever emitted | Use the desktop-notification channel instead: `audio-hooks set notification_settings.mode audio_and_notification`. Background in [EVENT_BEHAVIOR_NOTES.md](EVENT_BEHAVIOR_NOTES.md) |
 | `INTERNAL_ERROR` | Unexpected internal error | `audio-hooks logs tail --level error --n 50` and report it as a GitHub issue |
 
 ## Symptoms
@@ -78,6 +84,62 @@ audio-hooks uninstall        # removes the script install; preserves config + au
 ```
 
 Then `/reload-plugins` inside Claude Code. (Or just say *"audio-hooks is playing double sounds, fix it."*)
+
+### No sound when a task finishes, and no desktop popup
+
+The single most common shape of "echook stopped working", and it is almost never
+an upstream regression. Run `audio-hooks diagnose` first — as of 6.5.1 it names
+both halves of this directly.
+
+**No completion sound.** Check `audio-hooks hooks list` for `stop`. If it is
+`false`, someone turned it off — very likely you, or an agent acting on the
+advice in this file, because `stop` fires at the end of *every* turn and gets
+noisy fast. Diagnose reports `NO_COMPLETION_SIGNAL` only when `notification` is
+off too; with `notification` on you still have `idle_prompt`, which is the real
+"waiting for you" cue.
+
+The fix that keeps `stop` bearable:
+
+```text
+> audio-hooks hooks enable stop
+> audio-hooks set filters.stop.skip_if_background_tasks_running true
+```
+
+The filter reads the `background_tasks` array Claude Code puts in the `Stop`
+payload, so the chime is suppressed while subagents and teammates are still
+running and lands on the turn where the batch actually settles. Nothing in the
+payload marks a turn as final, so this is the closest available proxy — see
+[EVENT_BEHAVIOR_NOTES.md](EVENT_BEHAVIOR_NOTES.md).
+
+**No desktop popup, but audio works.** Two causes, both fixed in 6.5.1 and worth
+knowing if you are on an older version:
+
+1. **Any notification containing a `"` produced no toast on Windows.** The
+   Windows branch escaped the text for a POSIX shell (`\"`) and then interpolated
+   it into a PowerShell double-quoted string, where `\` is not an escape
+   character — so the generated script failed to parse and nothing appeared.
+   `permission_request` bodies embed tool commands, so quotes were routine. `$`
+   and backticks were silently deleted from the text even when it did parse.
+2. **The tray-balloon API is unreliable on Windows 11.** 6.5.1 sends a real WinRT
+   toast (`Windows.UI.Notifications`) addressed to a registered AppUserModelID,
+   falling back to BurntToast if you happen to have it, and to the old balloon
+   last. The working backend is probed once and cached in
+   `<data dir>/queue/notify_backend`; delete that file to force a re-probe.
+
+Either way, the outcome is now in the event log at `info` level, so you can see
+which backend ran without turning on debug:
+
+```text
+> audio-hooks logs tail --n 20
+{"action": "desktop_notification", "backend": "winrt", "status": "DISPATCHED", ...}
+```
+
+A failure logs `NOTIFICATION_FAILED` with the reason instead. Before 6.5.1 this
+path returned success unconditionally and logged only at debug level, which is
+why a completely dead toast looked identical to a working one.
+
+Also check `notification_settings.mode` — `audio_only` means no toast by design.
+`audio-hooks set notification_settings.mode audio_and_notification`.
 
 ### No sound at all
 
@@ -368,6 +430,9 @@ This is not a bug in either tool; they are independent notification systems that
 **Fix.** Either ask whoever owns the managed config to permit user hooks, or install through the Codex plugin marketplace instead of the native path (`codex plugin marketplace add ChanMeng666/echook`), since plugin-bundled hooks load by a different route.
 
 ### Desktop notifications (`terminalSequence`) do not appear
+
+> **As of 6.5.1 this is expected and cannot be configured away.** `terminalSequence` is inert on every echook event: Claude Code emits the escape only from a synchronous hook-completion path, and all 67 handlers are registered `async: true`. `diagnose` reports `TERMINAL_SEQUENCE_INERT`. For a real desktop toast use `notification_settings.mode = audio_and_notification`, which on Windows sends a WinRT toast. Details and the cost of a proper fix are in [EVENT_BEHAVIOR_NOTES.md](EVENT_BEHAVIOR_NOTES.md).
+
 
 Check these in order:
 

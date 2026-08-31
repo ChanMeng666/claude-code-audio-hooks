@@ -33,6 +33,16 @@ class UserPreferences:
     METADATA_KEYS = ("_version", "version", "$schema")
     COMMENT_PREFIX = "_"
 
+    # Dotted paths for features the product dropped. Migration deletes these
+    # and reports each one in its notes list; everything else the user has that
+    # the template lacks is left alone (a config written by a *newer* echook
+    # must survive being read by an older one — see
+    # tests/test_migration.py::test_user_extra_key_preserved).
+    DROPPED_KEYS = (
+        "focus_flow",                     # removed in 6.0.0 — out of scope (wellness/timers)
+        "enabled_hooks.worktree_create",  # removed in 6.3.4 — a provider hook, not a notification
+    )
+
     def __init__(self, project_dir: Path, *, script_path: Optional[Path] = None):
         self.project_dir = Path(project_dir)
         self._script_path = Path(script_path) if script_path else Path(__file__).resolve()
@@ -190,14 +200,72 @@ class UserPreferences:
         except (OSError, ValueError):
             cfg = {}
         template = self._load_template()
-        cfg, did_migrate, added_keys = self._migrate_if_needed(cfg, template)
+        cfg, did_migrate, _notes = self._migrate_if_needed(cfg, template)
         if did_migrate:
-            # Persist via direct write — save()'s backup logic is still being
-            # bootstrapped in this phase, but the lock contract is universal.
-            with self._acquire_lock():
-                self._atomic_write_json(self.config_path, cfg)
+            cfg = self._persist_migration(cfg, template)
         cfg = self._apply_plugin_overlay(cfg)
         return cfg
+
+    def _persist_migration(self, cfg: Dict[str, Any], template: Dict[str, Any]) -> Dict[str, Any]:
+        """Write a migrated cfg back to disk, capturing a pre-migration .bak.
+
+        **Invariant: the sibling .bak holds pre-migration content or nothing —
+        never post-migration content.** A .bak that has already been migrated
+        looks like a recovery point and isn't one, which is worse than no .bak
+        at all.
+
+        That invariant is what forces the re-read below. This project spawns a
+        hook per event and routinely has many in flight, so the first load
+        after an upgrade races N processes that all read the same stale config
+        and all compute the same merge (the merge is deterministic — see
+        test_migration_is_idempotent_on_disk). Without the re-read, every loser
+        would reach _write_sibling_backup() *after* the winner had already
+        rewritten the file, and copy the winner's migrated config over the good
+        backup. Measured: 16 racing loaders reliably destroyed it.
+
+        So the whole thing is a check-then-act under the lock, using the same
+        predicate that decided to migrate in the first place: if the file on
+        disk no longer needs migrating, someone else did the work — return
+        their result and touch neither file. This also stops us clobbering a
+        concurrent `audio-hooks set` that landed between our read and the lock.
+
+        Re-run the predicate; do NOT byte-compare the file against
+        json.dumps(cfg). _atomic_write_json persists via write_text, which
+        translates \\n to \\r\\n on Windows, so those bytes never match and
+        every loser would fall through to the backup anyway. A byte guard
+        reviews as correct and passes on Linux CI while guarding nothing on
+        the platform this project is developed on.
+
+        Returns the config to use. Never raises: a read-only data dir or a lock
+        timeout leaves the migrated cfg correct in memory (and returns it), so
+        the event still fires and the next load retries the write.
+        """
+        try:
+            with self._acquire_lock():
+                # Re-read under the lock — our caller's copy is pre-lock and
+                # may be stale by now.
+                current: Optional[Dict[str, Any]] = None
+                try:
+                    parsed = json.loads(self.config_path.read_text(encoding="utf-8"))
+                    if isinstance(parsed, dict):
+                        current = parsed
+                except (OSError, ValueError):
+                    pass  # missing or corrupt — fall through and repair it
+                if current is not None:
+                    fresh, still_needed, _notes = self._migrate_if_needed(current, template)
+                    if not still_needed:
+                        return current
+                else:
+                    fresh = cfg
+                # Sibling .bak only, not the rotating external dir: this fires
+                # unattended on the first load after an upgrade, so
+                # `backup restore latest-sibling` stays available without
+                # burning a rotation slot on every install.
+                self._write_sibling_backup()
+                self._atomic_write_json(self.config_path, fresh)
+                return fresh
+        except (OSError, UserPreferences._LockTimeout):
+            return cfg
 
     def _apply_plugin_overlay(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Overlay CLAUDE_PLUGIN_OPTION_* env vars onto config."""
@@ -285,16 +353,85 @@ class UserPreferences:
             merged[k] = u_val
         return merged, added
 
+    def _strip_dropped_keys(self, cfg: Dict[str, Any]) -> List[str]:
+        """Delete DROPPED_KEYS from cfg in place. Returns the paths removed.
+
+        Only exact known-dead paths are touched — never "anything the template
+        no longer has", which would eat forward-compatible keys.
+        """
+        removed: List[str] = []
+        for dotted in self.DROPPED_KEYS:
+            parts = dotted.split(".")
+            node: Any = cfg
+            for p in parts[:-1]:
+                if not isinstance(node, dict) or p not in node:
+                    node = None
+                    break
+                node = node[p]
+            if isinstance(node, dict) and parts[-1] in node:
+                del node[parts[-1]]
+                removed.append(dotted)
+        return removed
+
+    def _collect_stale_keys(
+        self,
+        template: Dict[str, Any],
+        user: Dict[str, Any],
+        _path: str = "",
+    ) -> List[str]:
+        """Dotted paths the user has that the template doesn't. Report-only —
+        these are NOT removed (they may come from a newer echook)."""
+        stale: List[str] = []
+        for k, u_val in user.items():
+            if k in self.METADATA_KEYS or k.startswith(self.COMMENT_PREFIX):
+                continue
+            full = f"{_path}.{k}" if _path else k
+            if k not in template:
+                stale.append(full)
+                continue
+            t_val = template[k]
+            if isinstance(t_val, dict) and isinstance(u_val, dict):
+                stale.extend(self._collect_stale_keys(t_val, u_val, full))
+        return stale
+
     def _migrate_if_needed(self, cfg: Dict[str, Any], template: Dict[str, Any]) -> Tuple[Dict[str, Any], bool, List[str]]:
-        """Return (cfg_after_migration, did_migrate, added_keys)."""
-        user_v = cfg.get("_version", "0.0.0")
-        template_v = template.get("_version", "0.0.0")
-        if user_v == template_v:
+        """Return (cfg_after_migration, did_migrate, notes).
+
+        Notes entries: a bare dotted path = key added from the template;
+        ``removed:<path>`` = a DROPPED_KEYS entry deleted; ``stale:<path>`` =
+        a user key the template no longer has, reported but left in place.
+
+        The gate is **structural**, not a version-string compare. Through 6.5.0
+        this returned early whenever ``user._version == template._version``;
+        because config/default_preferences.json's stamp was left at 5.1.5 while
+        the project moved to 6.5.0, that was true for a large class of installs
+        and migration silently never ran — configs missed four minor versions
+        of new keys. The version stamp is now one trigger among several, not
+        the gate.
+
+        Never raises: this runs inside a hook, and a malformed config must
+        degrade to "use what's on disk", not kill the event.
+        """
+        if not isinstance(cfg, dict) or not isinstance(template, dict) or not template:
             return cfg, False, []
-        merged, added = self._deep_merge_missing(template, cfg)
-        merged["_version"] = template_v
-        merged["version"] = template_v
-        return merged, True, added
+        try:
+            template_v = template.get("_version", "0.0.0")
+            merged, added = self._deep_merge_missing(template, cfg)
+            removed = self._strip_dropped_keys(merged)
+            # _deep_merge_missing always rewrites metadata + comment fields, so
+            # comparing merged against cfg would report a migration on every
+            # single load. Only real structural drift (or a stamp that lags the
+            # template) counts as needing one.
+            if not added and not removed and cfg.get("_version") == template_v:
+                return cfg, False, []
+            merged["_version"] = template_v
+            merged["version"] = template_v
+            notes = list(added)
+            notes.extend("removed:" + p for p in removed)
+            notes.extend("stale:" + p for p in self._collect_stale_keys(template, merged))
+            return merged, True, notes
+        except Exception:
+            return cfg, False, []
 
     def _atomic_write_json(self, target: Path, cfg: Dict[str, Any]) -> None:
         """Atomic write via tempfile + os.replace."""
@@ -336,11 +473,11 @@ class UserPreferences:
         ms = int((t - int(t)) * 1000)
         return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + f".{ms:03d}Z"
 
-    def _snapshot_backup(self) -> Optional[str]:
-        """Snapshot current config file content to sibling .bak + external dir.
+    def _write_sibling_backup(self) -> Optional[bytes]:
+        """Copy the live config over its sibling .bak (overwrite, no rotation).
 
-        Returns the ID of the newly created external backup, or None if no
-        backup was needed (first save / dedup hit).
+        Returns the bytes copied, or None when there was nothing to copy —
+        callers use that to distinguish "first write" from "backed up".
         """
         if not self.config_path.exists():
             return None
@@ -348,12 +485,21 @@ class UserPreferences:
             current_bytes = self.config_path.read_bytes()
         except OSError:
             return None
-
-        # Sibling: overwrite
         try:
             self.sibling_backup_path.write_bytes(current_bytes)
         except OSError:
             pass
+        return current_bytes
+
+    def _snapshot_backup(self) -> Optional[str]:
+        """Snapshot current config file content to sibling .bak + external dir.
+
+        Returns the ID of the newly created external backup, or None if no
+        backup was needed (first save / dedup hit).
+        """
+        current_bytes = self._write_sibling_backup()
+        if current_bytes is None:
+            return None
 
         # External: dedup
         ext_dir = self.external_backup_dir

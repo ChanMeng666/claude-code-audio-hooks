@@ -7,6 +7,258 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Historical entries below this point use the project's previous name. They are preserved verbatim as a record of what was shipped at the time. The rename to **echook** landed in 5.2.1 — see that entry for the full mitigation guidance.
 
+## [6.5.1] - 2026-09-01
+
+Fix release. No new events, no new capability — every change here repairs
+something that was already broken, and three of the four were broken *invisibly*.
+
+It started as "recent Claude Code upgrades killed the hooks." They had not.
+Claude Code 2.1.251 was checked against 2.1.239 — the binary, not the docs — and
+`SessionStart.source`, the 14 `notification_type` values, the 11
+`StopFailure.error_type` values, the `Notification` and `Stop` payloads, plugin
+`hooks/hooks.json` discovery, and the `async`/`timeout` hook fields had all not
+moved. Findings recorded in `docs/EVENT_BEHAVIOR_NOTES.md`.
+
+What had actually happened was one config value, one wrong escape function, and a
+diagnostic that could not see either.
+
+### Fixed
+
+- **Any Windows desktop notification containing a `"` produced no toast at all.**
+  `send_desktop_notification()` escaped the title and body with
+  `_escape_notification_string()` — a **shell/osascript** escaper that emits
+  `\"` — and then interpolated the result into a **PowerShell double-quoted
+  string**, where `\` is not an escape character. The generated script failed to
+  parse and nothing appeared. Verified against PowerShell's own parser rather
+  than by eye:
+
+  ```
+  body    : Permission needed: Bash - git commit -m "fix: toast"
+  before  : ParseInput -> 3 errors ("Missing ')' in method call.")
+  after   : ParseInput -> 0 errors
+  ```
+
+  `permission_request` bodies embed tool commands, so quotes were routine. `$`
+  and backticks were silently *deleted* from the user-visible text even when the
+  script did parse. The correct escaper, `escape_powershell_string()`, was ten
+  lines away in the same file and already used by the audio path.
+
+  The Windows and WSL branches now use it; macOS keeps
+  `_escape_notification_string()`, which is what it was written for and is now
+  documented as osascript-only.
+
+- **The Windows toast used an API Windows 11 drops.** `NotifyIcon.ShowBalloonTip`
+  is the pre-Win10 tray balloon, and the script ran it with no message pump, no
+  STA apartment and no AppUserModelID. Replaced with an ordered backend chain:
+  a real WinRT toast (`Windows.UI.Notifications`, addressed to the well-known
+  shell PowerShell AUMID so nothing has to be installed or registered) →
+  BurntToast if the module already exists → the old balloon last, still correct
+  on 7/8 and in WSL. Toast text is inserted as an XML **text node**, not
+  interpolated into the XML source, so escaping stops being load-bearing.
+
+  The working backend is probed once and cached in
+  `<data dir>/queue/notify_backend`, keyed by OS release with a weekly TTL — a
+  hook must not pay for a synchronous PowerShell launch on every event. Delete
+  the file to force a re-probe.
+
+  **Known untested path:** the `notifyicon` fallback is covered by the parser
+  test and by mocked chain tests, but has never been exercised end-to-end on
+  real hardware — on any host where WinRT is available it wins immediately, and
+  the balloon is fire-and-forget, so even a live run could only confirm the
+  spawn, not that anything was drawn. It is the part of this fix to suspect
+  first if a Windows 7/8 user reports silence.
+
+- **A dead notification channel was indistinguishable from a working one.**
+  `send_desktop_notification()` returned `True` the instant `Popen` succeeded —
+  it never waited, never read the exit code, and sent both streams to `DEVNULL`
+  — so `notif_sent` was unconditionally true on Windows and the single trace was
+  a `log_debug` line suppressed unless `CLAUDE_HOOKS_DEBUG=1`.
+  `ErrorCode.NOTIFICATION_FAILED` had been defined since v5.0 and was never
+  emitted anywhere. It now returns the real outcome, logs
+  `desktop_notification` at **info** with the backend that ran, and emits
+  `NOTIFICATION_FAILED` with a reason when every backend fails.
+
+- **`play_tts()` had the identical escaping bug, and TTS was silent for the same
+  inputs.** Both the WSL and the Windows SAPI branches ran the spoken text
+  through the osascript escaper and interpolated it into a PowerShell string, so
+  a `"` anywhere in the message produced an unparseable script and nothing was
+  spoken — and `$` and backticks were deleted from what *was* spoken. Same
+  unconditional `return True`, and `ErrorCode.TTS_FAILED` was likewise defined
+  and never emitted. Verified the same way:
+
+  ```
+  spoken text: Task done: ran git commit -m "fix" for $HOME with a ` backtick
+  before     : ParseInput -> 3 errors
+  after      : ParseInput -> 0 errors
+  ```
+
+  Found while fixing the toast; a full audit of the file confirms the osascript
+  escaper now reaches exactly one branch — macOS — and no other PowerShell call
+  site was affected.
+
+- **The Windows toast probe could be reaped mid-chain and cache a backend it
+  never validated.** Every handler is registered `"timeout": 10` and Windows
+  kills an async hook's process tree, so a per-call-timeout chain could outlive
+  its own hook. The whole chain now shares one wall-clock budget
+  (`_NOTIFY_PROBE_BUDGET_SEC = 8.0`, pinned by a test to stay under the
+  registered hook timeout), and a probe that times out or exhausts the budget
+  caches **nothing** rather than a wrong answer — the first notification of the
+  week may be best-effort, and the cache is written on a later one.
+
+- **The migration backup could be destroyed by the migration it was protecting.**
+  `load()` now persists under a check-then-act: the loser of a race re-reads the
+  file under the lock, sees it no longer needs migrating, and returns the
+  winner's result without touching either file. Without that, N concurrent hooks
+  — the normal first-load-after-upgrade situation in this project — would each
+  reach the backup step *after* the winner had rewritten the config and copy
+  post-migration content over the good `.bak`, leaving something that looks like
+  a recovery point and isn't. Measured at 16 concurrent loaders × 6 rounds: 96
+  loads, config correct every time, no orphaned temp files, and the `.bak`
+  invariant now holds. This was a defect in the new backup code, not a
+  regression — before it, migration wrote no backup at all.
+
+- **Migration had not run on any install since 5.1.5.** `_migrate_if_needed`
+  gated on string equality of `_version`, and `config/default_preferences.json`
+  was left stamped `"5.1.5"` from 5.1.5 all the way through 6.5.0. For every
+  config carrying that same stamp the gate said "already current" and returned
+  early, so four minor versions of new keys never landed and keys the product
+  had dropped were never cleaned up. A real install inspected during this work
+  was still carrying the `focus_flow` block removed in **6.0.0** and had no
+  `notification_settings.terminal_sequence` block at all — a v6.5.0 feature it
+  could therefore never use.
+
+  The gate is now **structural**: template keys missing from the config, or
+  known-dead keys present in it, trigger a migration regardless of what the
+  stamps say. User values are never overwritten — only missing keys are added.
+  Removal is restricted to an explicit `DROPPED_KEYS` list (`focus_flow`,
+  `enabled_hooks.worktree_create`) so a config written by a *newer* echook
+  survives being read by an older one; anything else the template lacks is
+  reported in the migration notes as `stale:<path>` and left alone. The whole
+  path is wrapped so a malformed config degrades to "use what's on disk" instead
+  of taking the hook down, and the live config is copied to its sibling `.bak`
+  before the first post-upgrade rewrite.
+
+- **`scripts/bump-version.sh` now owns the preferences template's version**, as
+  canonical locations 9–11 (`_version`, `version`, and the `(vX.Y.Z)` embedded
+  in `_comment`). That stamp is written into every user's config by migration,
+  so leaving it stale made every install claim a version it wasn't — which is
+  what disabled migration in the first place.
+
+- **`notification_settings.mode` had two different defaults.** The code fallback
+  in `run_hook` was `audio_only` while the shipped template is
+  `audio_and_notification`, so a config predating the key behaved more strictly
+  than a fresh install. The code fallback now matches the template.
+
+- **`terminalSequence` has never been able to fire, and now says so.** v6.5.0
+  shipped it as a dependency-free desktop toast: print
+  `{"terminalSequence": "<OSC>"}` on stdout and Claude Code writes the escape.
+  But Claude Code emits that escape from exactly one function, and all four of
+  its call sites are **synchronous** hook-completion paths — the ones holding
+  the hook's exit status. A hook declared `"async": true` is backgrounded; its
+  stdout *is* read (the docs say otherwise) but the result is routed to the
+  model-response attachment path, which never emits the escape. All **67**
+  echook handlers are async.
+
+  Measured rather than reasoned about: identical shim, identical event, identical
+  stdout, only `async` differing — **0/3 async, 2/2 sync**, the escape landing
+  ~28 ms after the hook ran, with a 568-byte payload on stdin proving the hook
+  executed in both phases. Details in `docs/EVENT_BEHAVIOR_NOTES.md`.
+
+  It is close to working upstream: the field survives Claude Code's own schema
+  validation and rides all the way into the async-response attachment, where the
+  renderer reads only `systemMessage` and `hookSpecificOutput.additionalContext`
+  and drops it. That reads as an oversight, not a decision.
+
+  The feature was off by default, so nothing regressed; anyone who turned it on
+  got silence and no error. `diagnose` now reports `TERMINAL_SEQUENCE_INERT` and
+  points at the desktop-toast channel, which on Windows is now a real WinRT
+  toast. The code is unchanged and the feature is not silently removed — the
+  measurement, and the design for a real fix (a second minimal *synchronous*
+  handler beside the async audio one on the nine allowlisted events, rather than
+  flipping the existing 38), are in `docs/EVENT_BEHAVIOR_NOTES.md`.
+
+### Added
+
+- **Six `diagnose` codes for failures it previously reported as healthy.** On
+  the install that prompted this release, `audio-hooks diagnose` returned
+  `ok: true, errors: []` while both of the user's wanted signals were dead.
+  Following the `NATIVE_NOTIFICATIONS_ACTIVE` / `CODEX_MANAGED_HOOKS_ONLY`
+  precedent from v6.4.1:
+  - `NO_COMPLETION_SIGNAL` — none of `stop`, `subagent_stop` or `notification`
+    is enabled, so nothing can announce that a turn finished.
+  - `NOTIFICATION_FAILED` — every desktop-notification backend failed, naming
+    which were tried and why.
+  - `PREFS_SCHEMA_STALE` — the config on disk is stamped behind the install or
+    still carries a retired key. Reads the file directly, not
+    `_load_config_raw()`, which overlays the template and would make the check
+    structurally incapable of firing.
+  - `STALE_PLUGIN_CACHE` — `installed_plugins.json` records a version or path
+    that is not the running code. Benign for a `directory`-source marketplace;
+    not benign when the path is gone, which is the shape of
+    [anthropics/claude-code#90135](https://github.com/anthropics/claude-code/issues/90135),
+    where a re-materialised marketplace deletes the path live sessions are
+    pinned to and their plugin hooks stop firing silently.
+  - `WINDOWS_NO_GIT_BASH` — Claude Code runs command hooks through bash by
+    default and 2.1.251 refuses them outright when Git Bash is absent, taking
+    every handler down at once.
+  - `TERMINAL_SEQUENCE_INERT` — the v6.5.0 feature above is switched on but
+    cannot emit anything.
+
+- **`tests/test_desktop_notification.py` and `tests/test_diagnose_codes.py`**,
+  plus new migration cases. The regression guard for the escaping bug is not a
+  string comparison: on Windows it feeds the generated script to
+  `[System.Management.Automation.Language.Parser]::ParseInput` and asserts zero
+  parse errors for bodies containing `"`, `$` and a backtick, skipping cleanly
+  on Ubuntu and macOS.
+
+### Docs
+
+- **`docs/EVENT_BEHAVIOR_NOTES.md`** gains the 2.1.251 re-verification table and
+  four findings:
+  - **`PreModelSwitch` is a blocking decision hook and will not be registered.**
+    Its output contract is `permissionDecision: allow|deny|ask`, *"same contract
+    as PreToolUse"*, and Claude Code waits for it — the binary carries six
+    distinct error strings for a hook that fails to answer, including
+    `model switch blocked by a PreModelSwitch hook` and
+    `Fast mode was not changed: the PreModelSwitch check failed`. This is the
+    `WorktreeCreate` trap of v6.3.4 a second time: a name that reads like a
+    notification, a contract that makes the hook responsible for an outcome.
+    `PostModelSwitch` is the safe half (`additionalContext` only) and is cleared
+    for a later release, with its payload and registration steps recorded.
+  - **The new `args` exec form is not adopted.** It would remove echook's entire
+    Windows quoting risk class, but
+    [#90495](https://github.com/anthropics/claude-code/issues/90495) reports it
+    being dropped on Windows and still routed through `bash.exe` with no argv.
+    Windows is this project's primary platform.
+  - `Stop`'s `background_tasks` and `last_assistant_message` are now documented
+    upstream; the note calling them undocumented was true at 2.1.239 only.
+  - Four `Notification` matchers echook registers are missing from the published
+    docs but present in the 2.1.251 binary — the docs are behind, not echook.
+    Also: the hooks reference now lives at `code.claude.com/docs/en/hooks`.
+- `docs/TROUBLESHOOTING.md` gains the six codes and a **"No sound when a task
+  finishes, and no desktop popup"** section, the shape this release exists for.
+- `CLAUDE.md` / `AGENTS.md`: the `stop` section now names its mirror-image
+  complaint. "Audio fires too often" is answered with `enable-only notification
+  permission_request`; months later that same install is silent on completion
+  and reads as an upstream regression. Check `hooks list` before investigating
+  Claude Code.
+
+### Note
+
+**The `stop` sound had been switched off in the user's own config since
+2026-07-20**, and that was the whole of the missing completion audio. It is not
+a code change and is not fixed by this release — it is fixed by
+
+```
+audio-hooks hooks enable stop
+audio-hooks set filters.stop.skip_if_background_tasks_running true
+```
+
+What this release changes is that the condition is now reported. `stop` fires at
+the end of every turn and carries no finality marker, so muting it is a
+reasonable thing for a user to have done; being unable to find out afterwards
+that you did is not.
+
 ## [6.5.0] - 2026-08-23
 
 Capability release, and the other half of the upstream-tracking work v6.4.1 started. Two new notification surfaces, two new events, eight missing matchers, and a filter that finally expresses "only tell me about the slow ones".
